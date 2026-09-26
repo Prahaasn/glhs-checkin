@@ -1,0 +1,19 @@
+name: Check
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.0'
+      - run: uv python install 3.12
+      - run: uv sync --extra dev --locked --python 3.12
+      - run: uv run pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check app/static/app.js

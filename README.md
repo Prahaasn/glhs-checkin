@@ -1,6 +1,14 @@
 # GLHS Staff Presence
 
+![Backend checks](https://github.com/Prahaasn/glhs-checkin/actions/workflows/check.yml/badge.svg?branch=codex%2Fschool-checkin)
+
 A local school front-office pilot: two barcode scanner stations, printable teacher QR badges, and an office dashboard. Python **FastAPI + SQLAlchemy**, SQLite locally, PostgreSQL/Supabase later. All sample teachers are fictional.
+
+![Staff presence dashboard using fictional teachers](docs/screenshots/dashboard-desktop.png)
+
+## Backend
+
+The backend owns teacher registration, QR badge lookup, station authentication, arrival/departure transactions, presence history, and CSV exports. Both scanner computers connect to this one API. See the [API reference](docs/API.md) for routes, request examples, and retry behavior.
 
 ## Run locally
 

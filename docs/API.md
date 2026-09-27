@@ -2,7 +2,7 @@
 
 Base URL for local development: `http://127.0.0.1:8317/api`.
 
-Office routes require `X-Admin-Key`. Scanner routes require `X-Station-Key`, using the specific device's generated key. Keep keys in local `.env`; none are distributed in this repository. A station cannot list teachers, read attendance history, export records, or manage badges.
+Browser clients POST `/session` with `role` and `access_key`, then use the returned HttpOnly cookie. GET `/session` checks identity/expiry; DELETE `/session` revokes it. Office sessions last 30 minutes and station sessions 12 hours. The cookie is Secure on HTTPS. Trusted command-line integrations can still use headers: office routes require `X-Admin-Key`. Scanner routes require `X-Station-Key`, using the specific device's generated key. Keep keys in local `.env`; none are distributed in this repository. A station cannot list teachers, read attendance history, export records, or manage badges.
 
 | Method | Route | Access | Behavior |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ Office routes require `X-Admin-Key`. Scanner routes require `X-Station-Key`, usi
 {"teacher_id":"T-001","name":"Example Teacher"}
 ```
 
-Response: HTTP 201 with `id`, `teacher_id`, `name`, `active`, `inside`, `last_seen`, and `badge_code`. The server stores only the badge code's SHA-256 hash. Print the returned code immediately, or replace the badge later. Duplicate teacher IDs return 409.
+Response: HTTP 201 with `id`, `teacher_id`, `name`, `active`, `inside`, `last_seen`, `presence`, and `badge_code`. The server stores only the badge code's SHA-256 hash. Print the returned code immediately, or replace the badge later. Duplicate teacher IDs return 409.
 
 ## Scan a badge
 
@@ -49,7 +49,9 @@ Successful response fields: `name`, `inside`, `changed`, `direction`, `occurred_
 
 If the response is lost or a server/network error makes the outcome uncertain, retry with **the same request UUID and payload**. The backend returns the original recorded result without changing current status again. That result describes the original scan, even if the teacher subsequently scanned in the opposite direction. Reusing a UUID for a different teacher, direction, station, or correction reason returns 409.
 
-Unknown or inactive badges return 404. Authentication errors return 401. Invalid request fields return 422. A successful scanner beep alone does not prove server acceptance; require the application confirmation.
+Unknown or inactive badges return 404. Authentication errors return 401. Invalid request fields return 422. The `presence` field is `in`, `out`, or `unrecorded`; `inside` is null when unrecorded and otherwise a boolean; an imported/new teacher is unrecorded until a scan or correction establishes status. The first OUT observation records a known OUT status.
+
+A successful scanner beep alone does not prove server acceptance; require the application confirmation.
 
 ## QR rendering and corrections
 
@@ -59,4 +61,4 @@ Unknown or inactive badges return 404. Authentication errors return 401. Invalid
 
 ## Storage and rollout
 
-SQLAlchemy stores teacher state and audit events in one database transaction. SQLite serializes writers; PostgreSQL locks each teacher row. The hosted path uses a private `school_checkin` schema and requires explicit provisioning. Local tests cover SQLite; PostgreSQL/Supabase and physical hardware remain separate verification steps. See [Supabase setup](SUPABASE.md).
+SQLAlchemy stores teacher state and audit events in one database transaction. SQLite serializes writers; PostgreSQL locks each teacher row. The hosted path uses a private `school_checkin` schema and requires explicit provisioning. The API suite runs against both SQLite and local PostgreSQL 16, including in GitHub CI. Hosted Supabase and physical hardware remain separate verification steps. See [Supabase setup](SUPABASE.md).

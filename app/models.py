@@ -31,3 +31,11 @@ class ScanEvent(Base):
     occurred_at: Mapped[int] = mapped_column(Integer, index=True)
     changed: Mapped[bool] = mapped_column(Boolean)
     reason: Mapped[str | None] = mapped_column(String(240), nullable=True)
+
+
+class AccessSession(Base):
+    __tablename__ = "access_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    role: Mapped[str] = mapped_column(String(8))
+    station: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    expires_at: Mapped[int] = mapped_column(Integer, index=True)

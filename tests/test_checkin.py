@@ -1,3 +1,7 @@
+import os
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
@@ -7,16 +11,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.main import create_app
-from app.models import ScanEvent, Teacher
+from app.models import Base, ScanEvent, Teacher
 
 ADMIN = {"X-Admin-Key": "test-admin"}
 ONE = {"X-Station-Key": "test-one"}
 TWO = {"X-Station-Key": "test-two"}
 
 
-@pytest.fixture
-def client(tmp_path):
-    app = create_app(f"sqlite:///{tmp_path / 'test.db'}", "test-admin", {"front-1": "test-one", "front-2": "test-two"})
+@pytest.fixture(params=["sqlite", "postgres"] if os.getenv("TEST_DATABASE_URL") else ["sqlite"])
+def client(tmp_path, request):
+    url = f"sqlite:///{tmp_path / 'test.db'}" if request.param == "sqlite" else os.environ["TEST_DATABASE_URL"]
+    if request.param == "postgres":
+        parsed = make_url(url)
+        assert parsed.database.endswith("_test") and parsed.host in ("127.0.0.1", "localhost"), "Refusing to reset a non-local test database"
+    app = create_app(url, "test-admin", {"front-1": "test-one", "front-2": "test-two"})
+    if request.param == "postgres":
+        with app.state.engine.begin() as connection:
+            connection.execute(text("CREATE SCHEMA IF NOT EXISTS school_checkin"))
+            Base.metadata.drop_all(connection)
+            Base.metadata.create_all(connection)
     with TestClient(app) as c:
         yield c
 
@@ -161,3 +174,131 @@ def test_security_headers_and_health(client):
 def test_keys_must_be_separate():
     with pytest.raises(RuntimeError):
         create_app('sqlite://','same',{'front-1':'same'})
+
+
+def test_no_scan_means_unrecorded_not_outside(client):
+    t=teacher(client)
+    assert t['presence']=='unrecorded' and t['inside'] is None
+    result=scan(client,t['badge_code'],'out').json()
+    assert result['changed'] and not result['inside']
+    view=client.get('/api/teachers',headers=ADMIN).json()[0]
+    assert view['presence']=='out' and view['last_seen'] is not None
+
+
+def test_cookie_session_auth_and_logout(client):
+    response=client.post('/api/session',json={'role':'admin','access_key':'test-admin'})
+    assert response.status_code==200
+    cookie=response.headers['set-cookie']
+    assert 'HttpOnly' in cookie and 'SameSite=strict' in cookie and 'Path=/api' in cookie
+    assert response.json()['role']=='admin' and 'access_key' not in response.text
+    assert client.get('/api/teachers').status_code==200
+    assert client.delete('/api/session').status_code==200
+    assert client.get('/api/teachers').status_code==401
+
+
+def test_station_cookie_cannot_read_office_routes(client):
+    assert client.post('/api/session',json={'role':'station','access_key':'test-one'}).status_code==200
+    assert client.get('/api/station').json()['station']=='front-1'
+    assert client.get('/api/teachers').status_code==401
+    assert client.get('/api/export').status_code==401
+    assert client.post('/api/session',json={'role':'admin','access_key':'test-one'}).status_code==401
+
+
+def test_expired_session_is_rejected(client):
+    from app.models import AccessSession
+    client.post('/api/session',json={'role':'admin','access_key':'test-admin'})
+    with Session(client.app.state.engine) as session:
+        stored=session.scalar(select(AccessSession));stored.expires_at=0;session.commit()
+    assert client.get('/api/session').status_code==401
+    assert client.get('/api/teachers').status_code==401
+
+
+def test_https_session_cookie_is_secure(client):
+    client.base_url='https://testserver'
+    response=client.post('/api/session',json={'role':'admin','access_key':'test-admin'})
+    assert 'Secure' in response.headers['set-cookie']
+    assert response.headers['strict-transport-security']=='max-age=31536000'
+
+
+def test_failed_logins_are_throttled(client):
+    for _ in range(20):
+        assert client.post('/api/session',json={'role':'admin','access_key':'wrong'}).status_code==401
+    result=client.post('/api/session',json={'role':'admin','access_key':'wrong'})
+    assert result.status_code==429 and result.headers['retry-after']=='60'
+
+
+def test_unknown_badge_guessing_is_throttled_per_station(client):
+    for _ in range(30):
+        assert scan(client,'unknown').status_code==404
+    assert scan(client,'unknown').status_code==429
+    assert scan(client,'unknown',headers=TWO).status_code==404
+    assert client.get('/api/teachers',headers=ADMIN).status_code==200
+
+
+def test_untrusted_host_and_cross_origin_writes_are_rejected(client):
+    assert client.get('/api/teachers',headers={**ADMIN,'Host':'evil.example'}).status_code==400
+    assert client.post('/api/teachers',headers={**ADMIN,'Origin':'https://evil.example'},json={'name':'X','teacher_id':'X'}).status_code==403
+    assert client.get('/api/teachers',headers=ADMIN).json()==[]
+
+
+def test_oversized_and_chunked_requests_rejected_before_parsing(client):
+    assert client.post('/api/scans',headers=ONE,content='x'*9000).status_code==413
+    assert client.post('/api/scans',headers=ONE,content=iter([b'x'*5000,b'x'*5000])).status_code==413
+    assert client.get('/api/events',headers=ADMIN).json()==[]
+
+
+def test_blank_correction_reason_is_rejected(client):
+    t=teacher(client)
+    result=client.post(f"/api/teachers/{t['id']}/correction",headers=ADMIN,json={'direction':'in','request_id':str(uuid4()),'reason':'   '})
+    assert result.status_code==422
+
+
+def test_directory_import_is_idempotent_and_does_not_create_presence(client):
+    from app.roster import SOURCE_URL, import_directory
+    manifest={'source_url':SOURCE_URL,'expected_total':2,'staff':[{'directory_id':'101','name':'Example One'},{'directory_id':'102','name':'Example Two'}]}
+    engine=client.app.state.engine
+    assert import_directory(engine,manifest,dry_run=True)['added']==2
+    assert client.get('/api/teachers',headers=ADMIN).json()==[]
+    assert import_directory(engine,manifest)['added']==2
+    assert import_directory(engine,manifest)=={'added':0,'skipped':2,'dry_run':False}
+    staff=client.get('/api/teachers',headers=ADMIN).json()
+    assert len(staff)==2 and all(t['presence']=='unrecorded' for t in staff)
+    assert client.get('/api/events',headers=ADMIN).json()==[]
+    manifest['staff'][1]['name']='Unexpected Rename'
+    with pytest.raises(ValueError):
+        import_directory(engine,manifest)
+    assert client.get('/api/teachers',headers=ADMIN).json()[1]['name']=='Example Two'
+
+
+def test_validation_never_echoes_badge_or_access_key(client):
+    sentinel='sensitive-value-'*25
+    result=client.post('/api/session',json={'role':'admin','access_key':sentinel})
+    assert result.status_code==422 and sentinel not in result.text
+    result=client.post('/api/scans',headers=ONE,json={'code':sentinel,'direction':'in','request_id':str(uuid4())})
+    assert result.status_code==422 and sentinel not in result.text
+
+
+def test_database_errors_return_generic_retryable_response(client,monkeypatch):
+    from sqlalchemy.exc import OperationalError
+    def unavailable(*args,**kwargs):
+        raise OperationalError('private database statement',{},Exception('private connection detail'))
+    monkeypatch.setattr(client.app.state.engine,'connect',unavailable)
+    result=client.get('/api/health')
+    assert result.status_code==503
+    assert 'private' not in result.text and 'Retry the same scan' in result.text
+
+
+def test_cookie_sessions_survive_server_restart(client):
+    client.post('/api/session',json={'role':'admin','access_key':'test-admin'})
+    restarted=create_app(str(client.app.state.engine.url),'test-admin',{'front-1':'test-one','front-2':'test-two'})
+    with TestClient(restarted) as second:
+        second.cookies.update(client.cookies)
+        assert second.get('/api/teachers').status_code==200
+        second.delete('/api/session')
+    assert client.get('/api/teachers').status_code==401
+
+
+def test_weak_environment_keys_refused(monkeypatch):
+    monkeypatch.setenv('ADMIN_KEY','weak-admin');monkeypatch.setenv('STATION_1_KEY','weak-one');monkeypatch.setenv('STATION_2_KEY','weak-two')
+    with pytest.raises(RuntimeError,match='at least 32'):
+        create_app()

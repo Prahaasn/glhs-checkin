@@ -11,14 +11,18 @@ from typing import Literal
 from uuid import UUID
 
 import qrcode
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, event, select, text
+from sqlalchemy import create_engine, delete, event, select, text
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 
-from app.models import Base, ScanEvent, Teacher
+from app.models import AccessSession, Base, ScanEvent, Teacher
+from app.security import BodyLimitMiddleware, FailureLimiter
 
 STATIC = Path(__file__).parent / "static"
 
@@ -41,7 +45,12 @@ class ScanInput(BaseModel):
 class CorrectionInput(BaseModel):
     direction: Literal["in", "out"]
     request_id: UUID
-    reason: str = Field(min_length=3, max_length=240)
+    reason: str = Field(min_length=3, max_length=240, pattern=r"^\S(?:.*\S)?$")
+
+
+class LoginInput(BaseModel):
+    role: Literal["admin", "station"]
+    access_key: str = Field(min_length=1, max_length=256)
 
 
 def create_app(database_url=None, admin_key=None, station_keys=None):
@@ -52,7 +61,11 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         raise RuntimeError("Set ADMIN_KEY, STATION_1_KEY, and STATION_2_KEY before starting.")
     if len(set([admin, *stations.values()])) != len(stations) + 1:
         raise RuntimeError("Administrator and station keys must all be different.")
+    if database_url is None and any(len(key) < 32 for key in [admin, *stations.values()]):
+        raise RuntimeError("Configured access keys must contain at least 32 characters. Generate them with app.setup keys.")
     sqlite = url.startswith("sqlite")
+    if not sqlite and not url.startswith("postgresql+psycopg://"):
+        raise RuntimeError("Use SQLite or a postgresql+psycopg:// database URL.")
     if sqlite and url == "sqlite:///./data/checkin.db":
         Path("data").mkdir(exist_ok=True)
     kwargs = {"connect_args": {"check_same_thread": False, "timeout": 15}} if sqlite else {
@@ -74,26 +87,120 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
 
     app = FastAPI(title="GLHS Staff Check-in", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.engine = engine
+    limiter = FailureLimiter()
+    badge_limiter = FailureLimiter(limit=30)
+    default_hosts = "127.0.0.1,localhost,[::1]" + (",testserver" if database_url else "")
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.getenv("ALLOWED_HOSTS", default_hosts).split(","))
+    app.add_middleware(BodyLimitMiddleware)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.middleware("http")
     async def security_headers(request, call_next):
+        origin = request.headers.get("origin")
+        if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != str(request.base_url).rstrip("/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Cross-origin writes are not allowed."}, status_code=403, headers={"Cache-Control": "no-store"})
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; frame-ancestors 'none'"
         return response
 
-    def auth_admin(x_admin_key: str = Header(default="")):
-        if not hmac.compare_digest(x_admin_key.encode(), admin.encode()):
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request, error):
+        from fastapi.responses import JSONResponse
+        # Validation errors must never echo access keys or badge tokens.
+        return JSONResponse({"detail": "Invalid request. Check the supplied fields."}, status_code=422)
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_unavailable(request, error):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Database temporarily unavailable. Retry the same scan request."}, status_code=503)
+
+    def client_id(request):
+        # Do not trust user-supplied X-Forwarded-For headers.
+        return request.client.host if request.client else "unknown"
+
+    def session_identity(request):
+        token = request.cookies.get("checkin_session", "")
+        if not token:
+            return None
+        with Session(engine) as session:
+            found = session.get(AccessSession, badge_hash(token))
+            if found and found.expires_at > int(time.time()):
+                return {"role": found.role, "station": found.station, "expires_at": found.expires_at}
+        return None
+
+    def auth_admin(request: Request, x_admin_key: str = Header(default="")):
+        identity = session_identity(request) if not x_admin_key else None
+        if identity and identity["role"] == "admin":
+            return
+        address = client_id(request)
+        limiter.check(address)
+        if not x_admin_key or not hmac.compare_digest(x_admin_key.encode(), admin.encode()):
+            limiter.failed(address)
             raise HTTPException(401, "Administrator sign-in required.")
 
-    def auth_station(x_station_key: str = Header(default="")):
+    def auth_station(request: Request, x_station_key: str = Header(default="")):
+        identity = session_identity(request) if not x_station_key else None
+        if identity and identity["role"] == "station":
+            return identity["station"]
+        address = client_id(request)
+        limiter.check(address)
         for name, key in stations.items():
-            if hmac.compare_digest(x_station_key.encode(), key.encode()):
+            if x_station_key and hmac.compare_digest(x_station_key.encode(), key.encode()):
                 return name
+        limiter.failed(address)
         raise HTTPException(401, "Station sign-in required.")
+
+    @app.post("/api/session")
+    def login(payload: LoginInput, request: Request):
+        address = client_id(request)
+        limiter.check(address)
+        station = None
+        valid = payload.role == "admin" and hmac.compare_digest(payload.access_key.encode(), admin.encode())
+        if payload.role == "station":
+            for name, key in stations.items():
+                if hmac.compare_digest(payload.access_key.encode(), key.encode()):
+                    valid, station = True, name
+                    break
+        if not valid:
+            limiter.failed(address)
+            raise HTTPException(401, "Access key not recognized.")
+        token = secrets.token_urlsafe(32)
+        expires = int(time.time()) + (1800 if payload.role == "admin" else 43200)
+        with Session(engine) as session:
+            session.execute(delete(AccessSession).where(AccessSession.expires_at <= int(time.time())))
+            previous = request.cookies.get("checkin_session")
+            if previous:
+                session.execute(delete(AccessSession).where(AccessSession.token_hash == badge_hash(previous)))
+            session.add(AccessSession(token_hash=badge_hash(token), role=payload.role, station=station, expires_at=expires))
+            session.commit()
+        from fastapi.responses import JSONResponse
+        response = JSONResponse({"role": payload.role, "station": station, "expires_at": expires})
+        response.set_cookie("checkin_session", token, httponly=True, secure=request.url.scheme == "https", samesite="strict", max_age=expires-int(time.time()), path="/api")
+        return response
+
+    @app.get("/api/session")
+    def current_session(request: Request):
+        identity = session_identity(request)
+        if not identity:
+            raise HTTPException(401, "Sign-in required.")
+        return identity
+
+    @app.delete("/api/session")
+    def logout(request: Request):
+        with Session(engine) as session:
+            session.execute(delete(AccessSession).where(AccessSession.token_hash == badge_hash(request.cookies.get("checkin_session", ""))))
+            session.commit()
+        from fastapi.responses import JSONResponse
+        response = JSONResponse({"locked": True})
+        response.delete_cookie("checkin_session", path="/api", httponly=True, samesite="strict")
+        return response
 
     def db():
         with Session(engine) as session:
@@ -101,7 +208,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
 
     def teacher_view(t):
         return {"id": t.id, "teacher_id": t.teacher_id, "name": t.name, "active": t.active,
-                "inside": t.inside, "last_seen": t.last_seen}
+                "inside": None if t.last_seen is None else t.inside, "last_seen": t.last_seen,
+                "presence": "unrecorded" if t.last_seen is None else ("in" if t.inside else "out")}
 
     def scan_result(e, teacher):
         return {"name": teacher.name, "inside": e.direction == "in", "changed": e.changed,
@@ -120,7 +228,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
             if (previous.teacher_pk, previous.direction, previous.station, previous.reason) != (teacher.id, direction, station, reason):
                 raise HTTPException(409, "Request ID already used for another scan.")
             return scan_result(previous, teacher)
-        changed = teacher.inside != (direction == "in")
+        changed = teacher.last_seen is None or teacher.inside != (direction == "in")
         now = int(time.time())
         if changed:
             teacher.inside = direction == "in"
@@ -151,8 +259,14 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
 
     @app.post("/api/scans")
     def scan(payload: ScanInput, station=Depends(auth_station), session: Session = Depends(db)):
-        return record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
-                      payload.direction, payload.request_id, station)
+        badge_limiter.check(station)
+        try:
+            return record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
+                          payload.direction, payload.request_id, station)
+        except HTTPException as error:
+            if error.status_code == 404:
+                badge_limiter.failed(station)
+            raise
 
     @app.get("/api/teachers", dependencies=[Depends(auth_admin)])
     def teachers(session: Session = Depends(db)):
@@ -170,8 +284,9 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         for teacher in session.scalars(select(Teacher).where(Teacher.created_at <= at).order_by(Teacher.name)):
             view = teacher_view(teacher)
             entry = snapshots.get(teacher.id)
-            view["inside"] = bool(entry and entry.direction == "in")
+            view["inside"] = entry.direction == "in" if entry else None
             view["last_seen"] = entry.occurred_at if entry else None
+            view["presence"] = entry.direction if entry else "unrecorded"
             result.append(view)
         return result
 

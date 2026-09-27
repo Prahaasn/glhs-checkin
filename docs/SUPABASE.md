@@ -12,7 +12,7 @@ Supabase is PostgreSQL hosting here. SQLAlchemy connects from the Python server;
 
    This creates the initial tables and revokes access from PUBLIC, anon, and authenticated. Schema changes after initial provisioning need explicit reviewed migrations; `create_all` does not upgrade existing tables. Production should use a dedicated restricted database role for the application; provisioning should use a separate role.
 4. Run the Python app with that URL; register fictional teachers again. This does **not** migrate an existing SQLite roster/history automatically. Retain the local database until a separately tested migration is complete.
-5. Before using real teachers, verify HTTPS, role isolation, the API access boundaries, private schema exposure, concurrent scans, idempotent retries, backups/restores, and both physical scanners. Current local verification covers SQLite; no Supabase project has been connected or provisioned.
+5. Before using real teachers, verify HTTPS, role isolation, the API access boundaries, private schema exposure, concurrent scans, idempotent retries, backups/restores, and both physical scanners. Current verification covers SQLite and local PostgreSQL 16; no hosted Supabase project has been connected or provisioned. The new access_sessions table must be created with the provisioning command if upgrading an existing pilot; this is an additive table, not a teacher-table rewrite.
 
 Sources researched for this design:
 

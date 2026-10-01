@@ -1,10 +1,8 @@
 # GLHS Staff Presence
 
-![Backend checks](https://github.com/Prahaasn/glhs-checkin/actions/workflows/check.yml/badge.svg?branch=codex%2Fschool-checkin)
+![Backend checks](https://github.com/Prahaasn/glhs-checkin/actions/workflows/check.yml/badge.svg?branch=main)
 
-A local school front-office pilot: two barcode scanner stations, printable teacher QR badges, and an office dashboard. Python **FastAPI + SQLAlchemy**, SQLite locally, PostgreSQL/Supabase later. All sample teachers are fictional.
-
-![Staff presence dashboard using fictional teachers](docs/screenshots/dashboard-desktop.png)
+A local school front-office pilot: two barcode scanner stations, printable staff QR badges, and a simple office dashboard. Python **FastAPI + SQLAlchemy**, SQLite locally, PostgreSQL/Supabase later. All demo staff are fictional.
 
 ## Backend
 
@@ -18,16 +16,21 @@ Install Python 3.11+ and [uv](https://docs.astral.sh/uv/). Then:
 uv sync --extra dev --locked
 uv run python -m app.setup keys
 uv run --env-file .env python -m app.setup demo
+uv run --env-file .env python -m app.setup add-user --username frontdesk --name "Front Desk"
 uv run --env-file .env uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8317
 ```
 
-Open http://127.0.0.1:8317. Open `.env` **locally** to find the generated keys; never commit or share that file. The office dashboard uses `ADMIN_KEY`. Each scanner computer signs in as **Scanner station** with its own `STATION_1_KEY` or `STATION_2_KEY`. The browser exchanges the key for an expiring HttpOnly, SameSite=Strict cookie; raw access keys are not kept in browser storage. Office sessions expire after 30 minutes and station sessions after 12 hours. Locking revokes the session on the server. `demo` is optional; omit it when starting an empty roster. The demo badge codes live only in ignored `data/demo-badges.json`.
+Open http://127.0.0.1:8317. Sign in as **Office staff** using the username and password you just created. Run `add-user` again for each office viewer; passwords are entered privately at the terminal, salted and hashed, and never stored in the browser. Only an administrator with server access can create accounts. The legacy `ADMIN_KEY` still supports trusted API and setup operations; it is not the office browser login. Office sessions expire after 30 minutes.
+
+Open `.env` **locally** to configure each scanner computer with its own `STATION_1_KEY` or `STATION_2_KEY`. Station 1 is the arrival screen; station 2 is the departure screen. The browser exchanges the key for a 12-hour HttpOnly, SameSite=Strict session cookie. Sign out revokes the session on the server. `demo` is optional; omit it when starting a real roster. It seeds eight fictional staff: four IN, two OUT, and two not recorded. Demo badge codes live only in ignored `data/demo-badges.json`. The demo command refuses to mix examples into a real roster.
+
+If someone leaves the office team, run `uv run --env-file .env python -m app.setup disable-user --username NAME`. To rotate a password, use `reset-password --username NAME` in place of `disable-user`. Both actions revoke that account's existing sessions.
 
 Teachers & badges → enter name and teacher ID → Add teacher → print the QR badge. The QR contains a random token, not the teacher's name/ID. Only its SHA-256 hash is saved. Replacing a badge revokes the old one; print the replacement immediately.
 
 ## Two computers, one source of truth
 
-Run **one server**; both front computers open that same server URL. Do not run a separate SQLite database on each computer. Station 1 defaults to IN and station 2 defaults to OUT; either station can change direction. Direction is remembered per tab. USB scanners should use **HID Keyboard** mode with an **Enter suffix**. Focus the badge input, scan, and wait for the on-screen confirmation. A scanner's beep only means it read the badge, not that the server saved it.
+Run **one server**; both front computers open that same server URL. Do not run a separate SQLite database on each computer. Station 1 records arrivals and station 2 records departures in the browser interface. USB scanners should use **HID Keyboard** mode with an **Enter suffix**. Focus the badge input, scan, and wait for the on-screen confirmation. A scanner's beep only means it read the badge, not that the server saved it.
 
 For a supervised LAN pilot, set `ALLOWED_HOSTS` to the exact school-approved hostname or LAN IP and listen with `--host 0.0.0.0`; both computers use its LAN address and port 8317. Plain HTTP exposes keys/attendance to the network; use a school-approved HTTPS reverse proxy before real teacher data or routine operation. Keep the SQLite file on the server's local disk, not a network share. Supabase will host the database; a Python server is still needed to serve the app and API.
 

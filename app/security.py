@@ -1,9 +1,31 @@
 """Small, bounded defenses for the supervised single-server pilot."""
 import time
+import hashlib
+import hmac
+import secrets
 from collections import OrderedDict
 from threading import Lock
 
 from fastapi import HTTPException
+
+
+def hash_password(password: str) -> str:
+    if len(password) < 12 or len(password) > 256:
+        raise ValueError("Password must be 12 to 256 characters.")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 600_000)
+    return f"pbkdf2_sha256$600000${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        method, rounds, salt, expected = stored.split("$")
+        if method != "pbkdf2_sha256" or int(rounds) != 600_000:
+            return False
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), int(rounds))
+        return hmac.compare_digest(actual, bytes.fromhex(expected))
+    except (ValueError, TypeError):
+        return False
 
 
 class FailureLimiter:

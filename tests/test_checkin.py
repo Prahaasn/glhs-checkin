@@ -215,18 +215,31 @@ def test_named_office_login_can_read_presence_and_lock(client):
     assert client.get('/api/teachers').status_code==401
 
 
-def test_named_login_rejects_bad_password_and_inactive_account(client):
+def test_named_login_rejects_bad_password_and_inactive_account(client, monkeypatch):
+    from app.main import DUMMY_PASSWORD_HASH, verify_password as real_verify
+    checked_hashes=[]
+    def tracked_verify(password, stored):
+        checked_hashes.append(stored)
+        return real_verify(password, stored)
+    monkeypatch.setattr('app.main.verify_password',tracked_verify)
     with Session(client.app.state.engine) as session:
         session.add(OfficeUser(username='office',display_name='Office',password_hash=hash_password('long private password')))
         session.commit()
-    assert client.post('/api/office-session',json={'username':'office','password':'wrong'}).status_code==401
-    assert client.post('/api/office-session',json={'username':'unknown','password':'wrong'}).status_code==401
+    wrong=client.post('/api/office-session',json={'username':'office','password':'wrong'})
+    unknown=client.post('/api/office-session',json={'username':'unknown','password':'wrong'})
+    assert wrong.status_code==unknown.status_code==401
+    assert wrong.json()==unknown.json()
+    assert checked_hashes[0]!=DUMMY_PASSWORD_HASH
+    assert checked_hashes[1]==DUMMY_PASSWORD_HASH
     assert client.post('/api/office-session',json={'username':'office','password':'long private password'}).status_code==200
     with Session(client.app.state.engine) as session:
         user=session.scalar(select(OfficeUser).where(OfficeUser.username=='office'))
         user.active=False
         session.commit()
     assert client.get('/api/teachers').status_code==401
+    inactive=client.post('/api/office-session',json={'username':'office','password':'long private password'})
+    assert inactive.status_code==401
+    assert checked_hashes[-1]==DUMMY_PASSWORD_HASH
 
 
 def test_password_reset_revokes_existing_office_session(tmp_path, monkeypatch):

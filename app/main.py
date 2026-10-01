@@ -22,9 +22,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 
 from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent, Teacher
-from app.security import BodyLimitMiddleware, FailureLimiter, verify_password
+from app.security import BodyLimitMiddleware, FailureLimiter, hash_password, verify_password
 
 STATIC = Path(__file__).parent / "static"
+DUMMY_PASSWORD_HASH = hash_password("nonexistent-office-account")
 
 
 def badge_hash(code: str) -> str:
@@ -217,7 +218,9 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         limiter.check(address)
         with Session(engine) as session:
             user = session.scalar(select(OfficeUser).where(OfficeUser.username == payload.username.strip().lower()))
-            if not user or not user.active or not verify_password(payload.password, user.password_hash):
+            candidate_hash = user.password_hash if user and user.active else DUMMY_PASSWORD_HASH
+            valid = verify_password(payload.password, candidate_hash)
+            if not user or not user.active or not valid:
                 limiter.failed(address)
                 raise HTTPException(401, "Username or password not recognized.")
             return issue_session(request, "admin", user=user)

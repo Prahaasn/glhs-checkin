@@ -18,7 +18,7 @@ function clearLocal() {
   $('access-key').value='';$('password').value='';$('scan-code').value='';
   ['roster','directory','event-table','recent'].forEach(id=>$(id).replaceChildren());
   $('badge').hidden=true;$('badge-img').removeAttribute('src');$('badge-name').textContent='';
-  $('scan-feedback').textContent='Ready to scan';$('teacher-message').textContent='';
+  $('scan-feedback').textContent='Waiting for a badge';$('teacher-message').textContent='';
   $('notice').hidden=true;
   if(badgeUrl)URL.revokeObjectURL(badgeUrl);
 }
@@ -84,7 +84,9 @@ async function refresh() {
  try {
   const snapshot=$('as-of').value;
   const path=snapshot?'/presence?at='+Math.floor(new Date(snapshot).getTime()/1000):'/teachers';
-  const [roster,activity,directory]=await Promise.all([api(path).then(r=>r.json()),api('/events').then(r=>r.json()),api('/teachers').then(r=>r.json())]);
+  const rosterRequest=api(path).then(r=>r.json());
+  const directoryRequest=snapshot?api('/teachers').then(r=>r.json()):rosterRequest;
+  const [roster,activity,directory]=await Promise.all([rosterRequest,api('/events').then(r=>r.json()),directoryRequest]);
   if(role!=='admin'||!connected||version!==refreshVersion)return;
   staff=roster.filter(t=>t.active||snapshot);events=activity;
   renderRoster();

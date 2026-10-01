@@ -2,11 +2,12 @@
 
 Base URL for local development: `http://127.0.0.1:8317/api`.
 
-Browser clients POST `/session` with `role` and `access_key`, then use the returned HttpOnly cookie. GET `/session` checks identity/expiry; DELETE `/session` revokes it. Office sessions last 30 minutes and station sessions 12 hours. The cookie is Secure on HTTPS. Trusted command-line integrations can still use headers: office routes require `X-Admin-Key`. Scanner routes require `X-Station-Key`, using the specific device's generated key. Keep keys in local `.env`; none are distributed in this repository. A station cannot list teachers, read attendance history, export records, or manage badges.
+Office browsers POST `/office-session` with a named `username` and `password`; scanner browsers POST `/session` with `role: station` and `access_key`. Both receive an HttpOnly cookie. GET `/session` checks identity/expiry; DELETE `/session` revokes it. Office sessions last 30 minutes and station sessions 12 hours. The cookie is Secure on HTTPS. An administrator provisions named office accounts with `python -m app.setup add-user`; there is no public signup route. Trusted command-line integrations can still use headers: office routes require `X-Admin-Key`. Scanner routes require `X-Station-Key`, using the specific device's generated key. Keep keys in local `.env`; none are distributed in this repository. A station cannot list teachers, read attendance history, export records, or manage badges.
 
 | Method | Route | Access | Behavior |
 | --- | --- | --- | --- |
 | GET | `/health` | Public | Database connectivity check |
+| POST | `/office-session` | Public sign-in | Exchange a named office login for a session cookie |
 | GET | `/station` | Station | Identify the authenticated station |
 | POST | `/scans` | Station | Record explicit IN/OUT |
 | GET | `/teachers` | Office | Current roster and recorded presence |
@@ -19,7 +20,7 @@ Browser clients POST `/session` with `role` and `access_key`, then use the retur
 | GET | `/events` | Office | Latest 200 audit events |
 | GET | `/export` | Office | Full history as CSV, timestamps in UTC |
 
-`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved.
+`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
 
 ## Register a teacher
 
@@ -57,7 +58,7 @@ A successful scanner beep alone does not prove server acceptance; require the ap
 
 `POST /badge-image` currently accepts the scan-shaped payload above and returns `image/png`; the direction and UUID are validated but no scan is recorded. The registration screen handles this automatically.
 
-`POST /teachers/{id}/correction` accepts `direction`, a fresh `request_id`, and a `reason` of 3–240 characters. Corrections use the same atomic state/event transaction and record station `office`. The current pilot uses a shared office key; it does not attribute changes to individual office employees.
+`POST /teachers/{id}/correction` accepts `direction`, a fresh `request_id`, and a `reason` of 3–240 characters. Corrections use the same atomic state/event transaction. Corrections made through named office sessions include that account's display name in the activity log; legacy administrator-key corrections show as `office`.
 
 ## Storage and rollout
 

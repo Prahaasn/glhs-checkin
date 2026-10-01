@@ -39,3 +39,18 @@ class AccessSession(Base):
     role: Mapped[str] = mapped_column(String(8))
     station: Mapped[str | None] = mapped_column(String(32), nullable=True)
     expires_at: Mapped[int] = mapped_column(Integer, index=True)
+
+
+class OfficeUser(Base):
+    __tablename__ = "office_users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(40), unique=True)
+    display_name: Mapped[str] = mapped_column(String(80))
+    password_hash: Mapped[str] = mapped_column(String(160))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class OfficeSession(Base):
+    __tablename__ = "office_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("office_users.id"), index=True)

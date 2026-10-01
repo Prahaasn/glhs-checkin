@@ -11,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.main import create_app
-from app.models import Base, ScanEvent, Teacher
+from app.models import Base, OfficeUser, ScanEvent, Teacher
+from app.security import hash_password
 
 ADMIN = {"X-Admin-Key": "test-admin"}
 ONE = {"X-Station-Key": "test-one"}
@@ -194,6 +195,66 @@ def test_cookie_session_auth_and_logout(client):
     assert client.get('/api/teachers').status_code==200
     assert client.delete('/api/session').status_code==200
     assert client.get('/api/teachers').status_code==401
+
+
+def test_named_office_login_can_read_presence_and_lock(client):
+    person=teacher(client)
+    with Session(client.app.state.engine) as session:
+        session.add(OfficeUser(username='frontdesk',display_name='Front Desk',password_hash=hash_password('correct horse battery staple')))
+        session.commit()
+    response=client.post('/api/office-session',json={'username':'FRONTDESK','password':'correct horse battery staple'})
+    assert response.status_code==200
+    assert response.json()['display_name']=='Front Desk'
+    assert 'password' not in response.text
+    assert client.get('/api/teachers').status_code==200
+    assert client.get('/api/station').status_code==401
+    correction=client.post(f"/api/teachers/{person['id']}/correction",json={'direction':'in','reason':'Missed arrival scan','request_id':str(uuid4())})
+    assert correction.status_code==200
+    assert client.get('/api/events').json()[0]['station']=='Office · Front Desk'
+    assert client.delete('/api/session').status_code==200
+    assert client.get('/api/teachers').status_code==401
+
+
+def test_named_login_rejects_bad_password_and_inactive_account(client):
+    with Session(client.app.state.engine) as session:
+        session.add(OfficeUser(username='office',display_name='Office',password_hash=hash_password('long private password')))
+        session.commit()
+    assert client.post('/api/office-session',json={'username':'office','password':'wrong'}).status_code==401
+    assert client.post('/api/office-session',json={'username':'unknown','password':'wrong'}).status_code==401
+    assert client.post('/api/office-session',json={'username':'office','password':'long private password'}).status_code==200
+    with Session(client.app.state.engine) as session:
+        user=session.scalar(select(OfficeUser).where(OfficeUser.username=='office'))
+        user.active=False
+        session.commit()
+    assert client.get('/api/teachers').status_code==401
+
+
+def test_password_reset_revokes_existing_office_session(tmp_path, monkeypatch):
+    from app.setup import main as setup_main
+    url=f"sqlite:///{tmp_path / 'accounts.db'}"
+    monkeypatch.setenv('DATABASE_URL',url)
+    monkeypatch.setenv('ADMIN_KEY','a'*40)
+    monkeypatch.setenv('STATION_1_KEY','b'*40)
+    monkeypatch.setenv('STATION_2_KEY','c'*40)
+    monkeypatch.setenv('ALLOWED_HOSTS','testserver')
+    app=create_app()
+    with TestClient(app) as browser:
+        monkeypatch.setattr('sys.argv',['setup','add-user','--username','office','--name','Office'])
+        passwords=iter(['original long password','original long password'])
+        monkeypatch.setattr('app.setup.getpass.getpass',lambda _:next(passwords))
+        setup_main()
+        assert browser.post('/api/office-session',json={'username':'office','password':'original long password'}).status_code==200
+        monkeypatch.setattr('sys.argv',['setup','reset-password','--username','office'])
+        passwords=iter(['replacement long password','replacement long password'])
+        monkeypatch.setattr('app.setup.getpass.getpass',lambda _:next(passwords))
+        setup_main()
+        assert browser.get('/api/teachers').status_code==401
+        assert browser.post('/api/office-session',json={'username':'office','password':'original long password'}).status_code==401
+        assert browser.post('/api/office-session',json={'username':'office','password':'replacement long password'}).status_code==200
+        monkeypatch.setattr('sys.argv',['setup','disable-user','--username','office'])
+        setup_main()
+        assert browser.get('/api/teachers').status_code==401
+        assert browser.post('/api/office-session',json={'username':'office','password':'replacement long password'}).status_code==401
 
 
 def test_station_cookie_cannot_read_office_routes(client):

@@ -1,13 +1,256 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GLHS · Staff presence</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GLHS · Staff presence</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer>
+</script>
+</head>
 <body>
-<aside><a class="brand" href="/">G<span>GLHS<br><small>STAFF PRESENCE</small></span></a><div class="side-label">WORKSPACE</div><button class="nav active" data-page="dashboard">◫ &nbsp; Overview</button><button class="nav" data-page="teachers">♙ &nbsp; Teachers & badges</button><button class="nav" data-page="history">↗ &nbsp; Activity log</button><div class="side-label station-label">FRONT OFFICE</div><button class="nav" data-page="kiosk">▣ &nbsp; Scanner station</button><div class="sidebar-bottom"><span class="dot"></span> School check-in<br><small>Every arrival. Every departure.</small><button id="logout" class="text-button">Lock this computer</button></div></aside>
-<main><header><div class="breadcrumb">GLHS <span>/</span> Front office</div><div id="clock"></div></header>
-<section id="login" class="login panel"><div class="eyebrow">WELCOME TO STAFF PRESENCE</div><h1>A clearer picture<br>of your school day.</h1><p>Sign in to the office dashboard, or connect a scanner station.</p><form id="login-form"><label>Access type<select id="role"><option value="admin">Office administrator</option><option value="station">Scanner station</option></select></label><label>Access key<input type="password" id="access-key" required autocomplete="current-password"></label><button class="primary">Connect →</button></form><p id="login-error" role="alert"></p><small>Local pilot · Office sessions expire after 30 minutes; scanner sessions after 12 hours.</small></section>
+<aside id="sidebar" hidden>
+  <div class="brand">
+<span class="brand-mark">G</span>
+<span>Green Level<small>STAFF PRESENCE</small>
+</span>
+</div>
+  <nav aria-label="Main navigation">
+<button class="nav active" data-page="dashboard">Overview</button>
+<button class="nav" data-page="teachers">Staff & badges</button>
+<button class="nav" data-page="history">Activity</button>
+<button class="nav" data-page="kiosk">Scanner station</button>
+</nav>
+  <div class="sidebar-bottom">
+<span id="signed-in-as">
+</span>
+<button id="logout" class="text-button">Sign out</button>
+</div>
+</aside>
+<main>
+<header>
+<span>Green Level High School · Staff presence</span>
+<span id="clock">
+</span>
+</header>
+<section id="login" class="login panel">
+  <div class="login-mark">G</div>
+<div class="eyebrow">GREEN LEVEL HIGH SCHOOL</div>
+<h1>Staff presence</h1>
+<p>Sign in to see who is recorded in, out, or not yet scanned.</p>
+  <form id="login-form">
+<label>Sign in as<select id="role">
+<option value="admin">Office staff</option>
+<option value="station">Scanner station</option>
+</select>
+</label>
+    <div id="office-fields">
+<label>Username<input id="username" autocomplete="username" required>
+</label>
+<label>Password<input type="password" id="password" autocomplete="current-password" required>
+</label>
+</div>
+    <div id="station-fields" hidden>
+<label>Station access key<input type="password" id="access-key" autocomplete="off">
+</label>
+</div>
+<button class="primary">Sign in</button>
+</form>
+  <p id="login-error" role="alert">
+</p>
+<small>Office logins are created by an administrator on the server.</small>
+</section>
 <div id="workspace" hidden>
-<section id="dashboard" class="page"><div class="page-title"><div><div class="eyebrow">YOUR SCHOOL, AT A GLANCE</div><h1>Staff overview<span class="live-pill">● Live</span></h1><p id="subtitle">A little less paperwork. A lot more clarity.</p></div><button class="secondary export">↓ Export activity</button></div><div class="snapshot"><label>View presence at <input type="datetime-local" id="as-of"></label><button id="live" class="text-button">Return to live</button><small>Recorded scans only. Missed scans can leave status outdated; verify in person for emergencies.</small></div><div class="stats"><article class="stat"><div>IN THE BUILDING <span class="stat-icon">↙</span></div><strong id="in-count">0</strong><small><span class="dot"></span> Recorded as checked in</small></article><article class="stat"><div>OUT OF THE BUILDING <span class="stat-icon">↗</span></div><strong id="out-count">0</strong><small>Recorded as checked out</small></article><article class="stat"><div>NO SCAN RECORDED <span class="stat-icon">?</span></div><strong id="unknown-count">0</strong><small>Presence has not been recorded</small></article><article class="stat"><div>REGISTERED STAFF <span class="stat-icon">♙</span></div><strong id="total-count">0</strong><small id="sync">Waiting for the server</small></article></div><div class="dashboard-grid"><article class="panel"><div class="panel-heading"><div><h2>Who's here</h2><p>Staff presence, in one place.</p></div><span class="pill" id="roster-count">0 staff</span></div><div class="filters"><button class="filter selected" data-filter="all">All staff</button><button class="filter" data-filter="in">Inside</button><button class="filter" data-filter="out">Outside</button><button class="filter" data-filter="unrecorded">Not recorded</button><input id="search" placeholder="Search staff…" aria-label="Search staff"></div><div class="table-wrap"><table><thead><tr><th>TEACHER</th><th>STATUS</th><th>LAST CHANGE</th></tr></thead><tbody id="roster"></tbody></table></div><div class="pager"><button id="roster-prev" class="secondary">← Previous</button><span id="roster-page"></span><button id="roster-next" class="secondary">Next →</button></div></article><article class="panel activity"><div class="panel-heading"><div><h2>Recent activity</h2><p>The latest scans from both stations.</p></div><span class="small-dot"></span></div><div id="recent"></div><button class="text-button" data-page="history">View activity log →</button></article></div></section>
-<section id="teachers" class="page" hidden><div class="page-title"><div><div class="eyebrow">STAFF DIRECTORY</div><h1>Teachers & badges</h1><p>Register a teacher, print a badge, and they're ready to scan.</p></div></div><div class="panel"><form id="teacher-form" class="inline-form"><label>Full name<input id="teacher-name" required maxlength="120" placeholder="e.g. Alex Morgan"></label><label>Teacher ID<input id="teacher-id" required maxlength="80" placeholder="e.g. T-001"></label><button class="primary">Add teacher & create badge</button></form><p id="teacher-message" role="status"></p><div id="badge" hidden><div id="print-badge"><p>GLHS · STAFF BADGE</p><h2 id="badge-name"></h2><img id="badge-img" alt="Teacher QR badge"><small>Scan IN when arriving · OUT when leaving</small></div><button id="print" class="secondary">Print badge</button><p>Print or save now. The badge code is not stored in readable form.</p></div><div class="filters"><input id="directory-search" placeholder="Find a staff member…" aria-label="Search teacher directory"></div><div class="table-wrap"><table><thead><tr><th>NAME</th><th>TEACHER ID</th><th>BADGE / STATUS</th></tr></thead><tbody id="directory"></tbody></table></div><div class="pager"><button id="directory-prev" class="secondary">← Previous</button><span id="directory-page"></span><button id="directory-next" class="secondary">Next →</button></div></div></section>
-<section id="history" class="page" hidden><div class="page-title"><div><div class="eyebrow">ARRIVALS & DEPARTURES</div><h1>Activity log</h1><p>Recent scans, including repeat scans and office corrections.</p></div><button class="secondary export">↓ Export all activity</button></div><div class="panel table-wrap"><table><thead><tr><th>TEACHER</th><th>ACTION</th><th>STATION</th><th>TIME</th><th>NOTE</th></tr></thead><tbody id="event-table"></tbody></table><p>Showing the most recent 200 events. CSV export includes the full history.</p></div></section>
-<section id="kiosk" class="page" hidden><div class="page-title"><div><div class="eyebrow">FRONT OFFICE</div><h1>Scanner station</h1><p id="station-name">Connect with a station key to accept badges.</p></div></div><article class="panel kiosk-panel"><div class="mode-buttons"><button id="mode-in" class="selected">↙ Check IN</button><button id="mode-out">↗ Check OUT</button></div><div class="scan-symbol">▣</div><h2 id="scan-title">Ready for arrivals</h2><p>Hold your badge in front of the scanner.</p><form id="scan-form"><label class="sr-only" for="scan-code">Badge code</label><input type="password" id="scan-code" autocomplete="off" spellcheck="false" placeholder="Scan badge here" maxlength="256"><button class="primary">Record scan</button></form><div id="scan-feedback" role="status" aria-live="polite">Ready to scan</div><button id="retry" class="secondary" hidden>Retry previous scan</button><small>Keep this field focused. Configure the scanner to send Enter after every scan.</small></article></section>
-</div><div id="notice" role="status" aria-live="polite"></div><footer>GLHS STAFF PRESENCE <span>Built for a smoother start to the school day.</span></footer></main>
-</body></html>
+<section id="dashboard" class="page">
+  <div class="page-title">
+<div>
+<div class="eyebrow">RECORDED STAFF STATUS</div>
+<h1>Who's in the building?</h1>
+<p>Search staff or choose a status. Updates every five seconds.</p>
+</div>
+<span class="live-pill" id="live-status">● Live</span>
+</div>
+  <div id="demo-banner" class="demo-banner" hidden>
+<strong>Fictional demo</strong>
+<span>These names and scans are examples for trying the system.</span>
+</div>
+  <div id="notice" role="status" aria-live="polite" hidden>
+</div>
+  <div class="stats">
+<article class="stat in-stat">
+<div>CHECKED IN</div>
+<strong id="in-count">0</strong>
+<small>Recorded as inside</small>
+</article>
+<article class="stat out-stat">
+<div>CHECKED OUT</div>
+<strong id="out-count">0</strong>
+<small>Recorded as outside</small>
+</article>
+<article class="stat unknown-stat">
+<div>NOT RECORDED</div>
+<strong id="unknown-count">0</strong>
+<small>No scan yet</small>
+</article>
+</div>
+  <div class="dashboard-grid">
+    <article class="panel roster-panel">
+<div class="panel-heading">
+<div>
+<h2>Staff status</h2>
+<p id="roster-count">0 staff</p>
+</div>
+<span id="sync">Waiting for server</span>
+</div>
+<div class="filters">
+<input id="search" placeholder="Search by name or ID" aria-label="Search staff">
+<div class="filter-group" aria-label="Filter staff">
+<button class="filter selected" data-filter="all">All</button>
+<button class="filter" data-filter="in">In</button>
+<button class="filter" data-filter="out">Out</button>
+<button class="filter" data-filter="unrecorded">No scan</button>
+</div>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>STAFF MEMBER</th>
+<th>STATUS</th>
+<th>LAST SCAN</th>
+</tr>
+</thead>
+<tbody id="roster">
+</tbody>
+</table>
+</div>
+<div class="pager">
+<button id="roster-prev" class="secondary">Previous</button>
+<span id="roster-page">
+</span>
+<button id="roster-next" class="secondary">Next</button>
+</div>
+</article>
+    <article class="panel activity">
+<div class="panel-heading">
+<div>
+<h2>Latest scans</h2>
+<p>Recorded by the server</p>
+</div>
+</div>
+<div id="recent">
+</div>
+<button class="text-button" data-page="history">View all activity →</button>
+</article>
+  </div>
+  <details class="snapshot">
+<summary>View an earlier time</summary>
+<label>Recorded status at <input type="datetime-local" id="as-of">
+</label>
+<button id="live" class="text-button">Return to live</button>
+</details>
+  <p class="safety-note">A missed scan can leave a status outdated. Verify people in person during an emergency.</p>
+</section>
+<section id="teachers" class="page" hidden>
+<div class="page-title">
+<div>
+<div class="eyebrow">OFFICE SETUP</div>
+<h1>Staff & badges</h1>
+<p>Add a staff member and print their private QR badge.</p>
+</div>
+</div>
+<div class="panel">
+<form id="teacher-form" class="inline-form">
+<label>Full name<input id="teacher-name" required maxlength="120" placeholder="e.g. Alex Morgan">
+</label>
+<label>Staff ID<input id="teacher-id" required maxlength="80" placeholder="e.g. T-001">
+</label>
+<button class="primary">Add & create badge</button>
+</form>
+<p id="teacher-message" role="status">
+</p>
+<div id="badge" hidden>
+<div id="print-badge">
+<p>GLHS · STAFF BADGE</p>
+<h2 id="badge-name">
+</h2>
+<img id="badge-img" alt="Staff QR badge">
+<small>Scan at the arrival or departure station</small>
+</div>
+<button id="print" class="secondary">Print badge</button>
+<p>Print or save now. The badge code is never shown again.</p>
+</div>
+<div class="filters">
+<input id="directory-search" placeholder="Find a staff member" aria-label="Search staff directory">
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>NAME</th>
+<th>STAFF ID</th>
+<th>ACTIONS</th>
+</tr>
+</thead>
+<tbody id="directory">
+</tbody>
+</table>
+</div>
+<div class="pager">
+<button id="directory-prev" class="secondary">Previous</button>
+<span id="directory-page">
+</span>
+<button id="directory-next" class="secondary">Next</button>
+</div>
+</div>
+</section>
+<section id="history" class="page" hidden>
+<div class="page-title">
+<div>
+<div class="eyebrow">AUDIT HISTORY</div>
+<h1>Activity</h1>
+<p>Scans, repeats, and office corrections. Most recent 200 shown.</p>
+</div>
+<button class="secondary export">Export CSV</button>
+</div>
+<div class="panel table-wrap">
+<table>
+<thead>
+<tr>
+<th>STAFF MEMBER</th>
+<th>ACTION</th>
+<th>STATION</th>
+<th>TIME</th>
+<th>NOTE</th>
+</tr>
+</thead>
+<tbody id="event-table">
+</tbody>
+</table>
+</div>
+</section>
+<section id="kiosk" class="page" hidden>
+<div class="station-top">
+<span class="eyebrow">SCANNER STATION</span>
+<span id="station-name">
+</span>
+</div>
+<article class="panel kiosk-panel">
+<div class="scan-icon" aria-hidden="true">▦</div>
+<h1 id="scan-title">Ready to scan</h1>
+<p id="scan-instruction">Scan a staff badge. The scanner sends Enter automatically.</p>
+<form id="scan-form">
+<label class="sr-only" for="scan-code">Badge code</label>
+<input type="password" id="scan-code" autocomplete="off" spellcheck="false" placeholder="Scanner ready" maxlength="256">
+<button class="primary">Record scan</button>
+</form>
+<div id="scan-feedback" role="status" aria-live="polite">Waiting for a badge</div>
+<button id="retry" class="secondary" hidden>Retry the same scan</button>
+<small>Wait for an on-screen confirmation before scanning the next badge.</small>
+</article>
+</section>
+</div>
+<footer>Green Level High School · Local pilot</footer>
+</main>
+</body>
+</html>

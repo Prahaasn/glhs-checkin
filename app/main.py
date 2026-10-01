@@ -21,8 +21,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 
-from app.models import AccessSession, Base, ScanEvent, Teacher
-from app.security import BodyLimitMiddleware, FailureLimiter
+from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent, Teacher
+from app.security import BodyLimitMiddleware, FailureLimiter, verify_password
 
 STATIC = Path(__file__).parent / "static"
 
@@ -51,6 +51,11 @@ class CorrectionInput(BaseModel):
 class LoginInput(BaseModel):
     role: Literal["admin", "station"]
     access_key: str = Field(min_length=1, max_length=256)
+
+
+class OfficeLoginInput(BaseModel):
+    username: str = Field(min_length=1, max_length=40)
+    password: str = Field(min_length=1, max_length=256)
 
 
 def create_app(database_url=None, admin_key=None, station_keys=None):
@@ -132,18 +137,51 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         with Session(engine) as session:
             found = session.get(AccessSession, badge_hash(token))
             if found and found.expires_at > int(time.time()):
-                return {"role": found.role, "station": found.station, "expires_at": found.expires_at}
+                identity = {"role": found.role, "station": found.station, "expires_at": found.expires_at}
+                office_session = session.get(OfficeSession, found.token_hash)
+                if office_session:
+                    user = session.get(OfficeUser, office_session.user_id)
+                    if not user or not user.active:
+                        return None
+                    identity["display_name"] = user.display_name
+                    identity["user_id"] = user.id
+                return identity
         return None
+
+    def issue_session(request, role, station=None, user=None):
+        token = secrets.token_urlsafe(32)
+        token_hash = badge_hash(token)
+        expires = int(time.time()) + (1800 if role == "admin" else 43200)
+        with Session(engine) as session:
+            session.execute(delete(OfficeSession).where(OfficeSession.token_hash.in_(
+                select(AccessSession.token_hash).where(AccessSession.expires_at <= int(time.time())))))
+            session.execute(delete(AccessSession).where(AccessSession.expires_at <= int(time.time())))
+            previous = request.cookies.get("checkin_session")
+            if previous:
+                session.execute(delete(OfficeSession).where(OfficeSession.token_hash == badge_hash(previous)))
+                session.execute(delete(AccessSession).where(AccessSession.token_hash == badge_hash(previous)))
+            session.add(AccessSession(token_hash=token_hash, role=role, station=station, expires_at=expires))
+            if user:
+                session.add(OfficeSession(token_hash=token_hash, user_id=user.id))
+            session.commit()
+        from fastapi.responses import JSONResponse
+        identity = {"role": role, "station": station, "expires_at": expires}
+        if user:
+            identity["display_name"] = user.display_name
+        response = JSONResponse(identity)
+        response.set_cookie("checkin_session", token, httponly=True, secure=request.url.scheme == "https", samesite="strict", max_age=expires-int(time.time()), path="/api")
+        return response
 
     def auth_admin(request: Request, x_admin_key: str = Header(default="")):
         identity = session_identity(request) if not x_admin_key else None
         if identity and identity["role"] == "admin":
-            return
+            return identity.get("user_id")
         address = client_id(request)
         limiter.check(address)
         if not x_admin_key or not hmac.compare_digest(x_admin_key.encode(), admin.encode()):
             limiter.failed(address)
             raise HTTPException(401, "Administrator sign-in required.")
+        return None
 
     def auth_station(request: Request, x_station_key: str = Header(default="")):
         identity = session_identity(request) if not x_station_key else None
@@ -171,19 +209,18 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         if not valid:
             limiter.failed(address)
             raise HTTPException(401, "Access key not recognized.")
-        token = secrets.token_urlsafe(32)
-        expires = int(time.time()) + (1800 if payload.role == "admin" else 43200)
+        return issue_session(request, payload.role, station)
+
+    @app.post("/api/office-session")
+    def office_login(payload: OfficeLoginInput, request: Request):
+        address = client_id(request)
+        limiter.check(address)
         with Session(engine) as session:
-            session.execute(delete(AccessSession).where(AccessSession.expires_at <= int(time.time())))
-            previous = request.cookies.get("checkin_session")
-            if previous:
-                session.execute(delete(AccessSession).where(AccessSession.token_hash == badge_hash(previous)))
-            session.add(AccessSession(token_hash=badge_hash(token), role=payload.role, station=station, expires_at=expires))
-            session.commit()
-        from fastapi.responses import JSONResponse
-        response = JSONResponse({"role": payload.role, "station": station, "expires_at": expires})
-        response.set_cookie("checkin_session", token, httponly=True, secure=request.url.scheme == "https", samesite="strict", max_age=expires-int(time.time()), path="/api")
-        return response
+            user = session.scalar(select(OfficeUser).where(OfficeUser.username == payload.username.strip().lower()))
+            if not user or not user.active or not verify_password(payload.password, user.password_hash):
+                limiter.failed(address)
+                raise HTTPException(401, "Username or password not recognized.")
+            return issue_session(request, "admin", user=user)
 
     @app.get("/api/session")
     def current_session(request: Request):
@@ -195,6 +232,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
     @app.delete("/api/session")
     def logout(request: Request):
         with Session(engine) as session:
+            session.execute(delete(OfficeSession).where(OfficeSession.token_hash == badge_hash(request.cookies.get("checkin_session", ""))))
             session.execute(delete(AccessSession).where(AccessSession.token_hash == badge_hash(request.cookies.get("checkin_session", ""))))
             session.commit()
         from fastapi.responses import JSONResponse
@@ -329,10 +367,10 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
         session.commit()
         return teacher_view(teacher)
 
-    @app.post("/api/teachers/{pk}/correction", dependencies=[Depends(auth_admin)])
-    def correction(pk: int, payload: CorrectionInput, session: Session = Depends(db)):
+    @app.post("/api/teachers/{pk}/correction")
+    def correction(pk: int, payload: CorrectionInput, actor=Depends(auth_admin), session: Session = Depends(db)):
         return record(session, select(Teacher).where(Teacher.id == pk), payload.direction,
-                      payload.request_id, "office", payload.reason)
+                      payload.request_id, f"office:{actor}" if actor is not None else "office", payload.reason)
 
     @app.post("/api/badge-image", dependencies=[Depends(auth_admin)])
     def badge_image(payload: ScanInput):
@@ -348,9 +386,17 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
             query = query.where(ScanEvent.occurred_at < until)
         if limit:
             query = query.limit(limit)
+        entries = list(session.execute(query))
+        actor_ids = {int(e.station.split(":")[1]) for e, _ in entries
+                     if e.station.startswith("office:") and e.station[7:].isdigit()}
+        actors = {user.id: user.display_name for user in session.scalars(select(OfficeUser).where(OfficeUser.id.in_(actor_ids)))} if actor_ids else {}
+        def label(station):
+            if station.startswith("office:") and station[7:].isdigit():
+                return "Office · " + actors.get(int(station[7:]), "Former user")
+            return station
         return [{"id": e.id, "name": t.name, "teacher_id": t.teacher_id, "direction": e.direction,
-                 "station": e.station, "occurred_at": e.occurred_at, "changed": e.changed, "reason": e.reason}
-                for e, t in session.execute(query)]
+                 "station": label(e.station), "occurred_at": e.occurred_at, "changed": e.changed, "reason": e.reason}
+                for e, t in entries]
 
     @app.get("/api/events", dependencies=[Depends(auth_admin)])
     def events(since: int | None = None, until: int | None = None, session: Session = Depends(db)):

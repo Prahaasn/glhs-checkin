@@ -11,7 +11,8 @@ history. Office users can manage staff and corrections; station users can scan
 but cannot read the office roster. Browser screens share the existing API.
 
 - Setup requires terminal commands and copied enrollment keys.
-- Overview shows recorded presence, but has no planned absence or coverage view.
+- Overview now shows recorded presence and today's planned coverage summary;
+  Absences & cover supports whole school dates and substitute names.
 - Staff & badges supports one person at a time; replacement immediately revokes
   the old token, so printing is an important step.
 - Office corrections use browser prompts rather than an explicit review form.
@@ -39,7 +40,7 @@ substitute arrived or an automatic badge/account.
 
 1. **Repeatable rehearsal:** isolated fresh demo, printable codes, launcher, and
    verification. This makes subsequent product review reproducible.
-2. **Absences and substitute coverage:** office records an absence for a school
+2. **Absences and substitute coverage (implemented):** office records an absence for a school
    date, assigns or changes a substitute, cancels an absence, and sees today's
    coverage. Preserve scan history and role isolation.
 3. **Exception handling:** replace browser prompts with accessible forms that
@@ -55,7 +56,8 @@ framework rewrite before the daily workflows work.
 
 ## Decisions to settle in product review
 
-- Substitute names per absence versus a reusable substitute directory.
+- Substitute names per absence are implemented; decide whether a reusable
+  substitute directory is needed next.
 - Whole school dates first; later, partial-day coverage and multiple assignments.
 - Who can edit coverage and whether additional read-only office roles are needed.
 - Whether substitutes later need badges and recorded attendance of their own.

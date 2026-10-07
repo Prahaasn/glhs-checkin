@@ -40,6 +40,13 @@ If someone leaves the office team, run `uv run --env-file .env python -m app.set
 
 Teachers & badges → enter name and teacher ID → Add teacher → print the QR badge. The QR contains a random token, not the teacher's name/ID. Only its SHA-256 hash is saved. Replacing a badge revokes the old one; print the replacement immediately.
 
+**Absences & cover** → select the school date → Plan absence → choose an active
+staff member and optionally enter the substitute's name. The overview shows
+today's planned absences and coverage gaps. Edit cover, cancel, restore, and
+History preserve a record of changes. Planning coverage leaves recorded scan
+status unchanged. See the [coverage workflow](docs/ABSENCE-COVERAGE.md), including
+the reviewed additive PostgreSQL migration for an existing database.
+
 ## Two computers, one source of truth
 
 Run **one server**; both front computers open that same server URL. Do not run a separate SQLite database on each computer. Station 1 records arrivals and station 2 records departures in the browser interface. USB scanners should use **HID Keyboard** mode with an **Enter suffix**. Focus the badge input, scan, and wait for the on-screen confirmation. A scanner's beep only means it read the badge, not that the server saved it.
@@ -75,6 +82,8 @@ uv run --extra dev --extra demo pytest -q
 # Optional: set TEST_DATABASE_URL to a local PostgreSQL database ending in _test
 # to run the same API cases against both SQLite and PostgreSQL.
 node --check app/static/app.js
+node --check app/static/coverage.js
+node --test tests/test_coverage_ui.cjs
 ```
 
 See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.

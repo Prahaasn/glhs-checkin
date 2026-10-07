@@ -23,7 +23,7 @@ const deferred = () => {
 const flush = () => new Promise(done => setImmediate(done));
 
 function boot(routes = {}) {
-  const elements = new Map(), listeners = {}, requests = [], sent = [];
+  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = [];
   const element = id => {
     if (!elements.has(id)) {
       const item = {id, value:'', textContent:'', innerHTML:'', checked:false,
@@ -41,7 +41,9 @@ function boot(routes = {}) {
       querySelectorAll:()=>[], addEventListener:(event, handler)=>{(listeners[event] ||= []).push(handler);},
       body:{classList:{remove(){},toggle(){}}}},
     URLSearchParams, URL, Date, crypto:{randomUUID:()=>'00000000-0000-4000-8000-' + String(sent.length).padStart(12, '0')},
-    setInterval(){}, setTimeout(){return 0;}, clearTimeout(){}, encodeURIComponent,
+    // Timers are held until a test runs them, so delayed UI resets can be checked deterministically.
+    setInterval(){}, setTimeout(handler){timers.push(handler); return timers.length;}, clearTimeout(id){if (id) timers[id - 1] = null;},
+    encodeURIComponent,
     sessionStorage:{removeItem(){},getItem(){return null;},setItem(){}},
     fetch:async(url, options={})=>{
       const route = new URL(url, 'http://local.test').pathname.replace('/api','');
@@ -68,7 +70,8 @@ function boot(routes = {}) {
   (listeners.DOMContentLoaded || []).forEach(handler => handler());
   vm.runInContext("role='admin';connected=true;page='coverage';directoryStaff=" + JSON.stringify(staff), context);
   element('coverage-day').value = DAY;
-  return {context, element, requests, sent, read:code=>vm.runInContext(code,context)};
+  const runTimers = () => timers.splice(0).forEach(handler => handler && handler());
+  return {context, element, requests, sent, runTimers, read:code=>vm.runInContext(code,context)};
 }
 
 module.exports = {DAY, staff, entry, coverage, range, attention, response, deferred, flush, boot};

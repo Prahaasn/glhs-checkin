@@ -1,7 +1,7 @@
 // Overview attention queue, review dialogs, roster views, and activity filters, using the real scripts.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {DAY, entry, coverage, attention, response, flush, boot} = require('./ui_harness.cjs');
+const {DAY, entry, coverage, attention, response, deferred, flush, boot} = require('./ui_harness.cjs');
 
 const person = {id:3, name:'Taylor Chen', teacher_id:'DEMO-003', active:true, presence:'in', inside:true, last_seen:1};
 const stale = {id:'stale_in:3::', kind:'stale_in', tone:'warning', title:'Taylor Chen is still recorded IN from Tue Oct 6',
@@ -187,4 +187,41 @@ test('signing out clears the queue, dialogs, and filters', async()=>{
   assert.equal(ui.read('attentionData'), null);
   assert.equal(ui.element('activity-day').value, '');
   assert.equal(ui.read('filter'), 'all');
+});
+
+test('signing out while an attention action loads does not open its dialog', async()=>{
+  const pending = deferred();
+  const ui = overview({'/absences':()=>pending.promise});
+  await ui.context.refreshAttention();
+  const clicked = click(ui, 'attention-list', gap.id);
+  ui.context.clearLocal();
+  pending.resolve(response(coverage));
+  await clicked;
+  assert.equal(ui.element('coverage-dialog').open, false);
+});
+
+test('a later failed scan keeps its error after the earlier success timer fires', async()=>{
+  let status = 200;
+  const ui = boot({'/scans':()=>response(status === 200
+    ? {name:'Alex Morgan', message:'Checked in', occurred_at:1, changed:true}
+    : {detail:'Badge not recognized. Please see the front office.'}, status)});
+  ui.read("role='station';stationName='front-1';direction='in';page='kiosk'");
+  ui.element('scan-code').value = 'first-badge';
+  ui.element('scan-form').onsubmit({preventDefault(){}});
+  await flush(); await flush();
+  assert.match(ui.element('scan-feedback').textContent, /Alex Morgan · Checked in/);
+  status = 404;
+  ui.element('scan-code').value = 'unknown-badge';
+  ui.element('scan-form').onsubmit({preventDefault(){}});
+  await flush(); await flush();
+  assert.equal(ui.element('scan-feedback').className, 'error');
+  ui.runTimers();
+  assert.equal(ui.element('scan-feedback').className, 'error');
+  assert.match(ui.element('scan-feedback').textContent, /Badge not recognized/);
+  status = 200;
+  ui.element('scan-code').value = 'next-badge';
+  ui.element('scan-form').onsubmit({preventDefault(){}});
+  await flush(); await flush();
+  ui.runTimers();
+  assert.equal(ui.element('scan-feedback').textContent, 'Ready for the next badge');
 });

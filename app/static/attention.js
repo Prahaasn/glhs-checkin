@@ -52,6 +52,7 @@ async function refreshAttention() {
 
 async function openAbsenceFromAttention(action) {
   const data = await (await api('/absences?day=' + encodeURIComponent(action.day))).json();
+  if (role !== 'admin' || !connected) return;
   const entry = data.entries.find(item => item.id === action.absence_id);
   if (!entry) throw new Error('That absence has already changed. The list will refresh.');
   openCoverage(action.type === 'cancel_absence' ? 'cancel' : 'edit', entry);

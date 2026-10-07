@@ -43,9 +43,10 @@ If someone leaves the office team, run `uv run --env-file .env python -m app.set
 
 Teachers & badges → enter name and teacher ID → Add teacher → print the QR badge. The QR contains a random token, not the teacher's name/ID. Only its SHA-256 hash is saved. Replacing a badge revokes the old one; print the replacement immediately.
 
-**Absences & cover** → select the school date → Plan absence → choose an active
-staff member and optionally enter the substitute's name. The overview shows
-today's planned absences and coverage gaps. Edit cover, cancel, restore, and
+**Absences & cover** → Plan absence → choose an active staff member, the first
+day out, and how many school days (weekends are skipped), and optionally enter
+the substitute's name. Edit or cancel one day or the rest of a multi-day plan.
+**Next 2 weeks** shows upcoming absences and gaps; the overview shows today's. Edit cover, cancel, restore, and
 History preserve a record of changes. Planning coverage leaves recorded scan
 status unchanged. See the [coverage workflow](docs/ABSENCE-COVERAGE.md), including
 the reviewed additive PostgreSQL migration for an existing database.

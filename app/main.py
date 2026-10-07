@@ -33,6 +33,16 @@ def badge_hash(code: str) -> str:
     return hashlib.sha256(code.strip().encode()).hexdigest()
 
 
+def upgrade_sqlite(engine):
+    """Additive upgrades for local SQLite files created by earlier pilot versions."""
+    with engine.begin() as connection:
+        columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(teacher_absences)")}
+        if "series_id" not in columns:
+            connection.exec_driver_sql("ALTER TABLE teacher_absences ADD COLUMN series_id VARCHAR(36)")
+        connection.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_teacher_absences_series_id ON teacher_absences (series_id)")
+
+
 class TeacherInput(BaseModel):
     teacher_id: str = Field(min_length=1, max_length=80, pattern=r"^\S(?:.*\S)?$")
     name: str = Field(min_length=1, max_length=120, pattern=r"^\S(?:.*\S)?$")
@@ -89,6 +99,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         # Local bootstrap only. Hosted databases require the explicit provisioning command.
         if sqlite:
             Base.metadata.create_all(engine)
+            upgrade_sqlite(engine)
         yield
         engine.dispose()
 

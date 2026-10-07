@@ -25,10 +25,17 @@ process. Keep school_checkin outside the exposed Data API schemas. Hosted
 Supabase execution remains unverified; CI verifies the migration on PostgreSQL
 16 with existing attendance records.
 
+Multi-day plans then require the reviewed
+[series migration](migrations/2026-10-08-absence-series.sql), which adds one
+nullable `series_id` column and index to `teacher_absences`. Apply migrations in
+filename order. Existing single-day entries keep a null series and work as before.
+CI applies both migrations in order to a database with existing attendance.
+
 Fresh provisioning through init-postgres creates all model tables. SQLite
-locally creates the two missing tables on startup. Neither path upgrades columns
-in tables that already exist. To roll back the app, retain the added tables and
-coverage history and revert the application commit.
+locally creates missing tables on startup and adds the nullable `series_id`
+column to an earlier local file. PostgreSQL never upgrades columns automatically.
+To roll back the app, retain the added tables, column, and coverage history and
+revert the application commit; the earlier version ignores `series_id`.
 
 Sources researched for this design:
 

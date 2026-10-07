@@ -88,8 +88,9 @@ an object mapping each later entry ID to the version the office reviewed. The
 later entries are this plan's days after this one that share this day's
 cancelled state: active days when assigning cover or cancelling, cancelled days
 when restoring. If the set or any version differs, nothing is saved and the
-response is 409. The response adds `changed_days`. Every changed day receives
-its own audit change.
+response is 409. Cover edits copy the new substitute name to those later days;
+cancelling or restoring them keeps each day's own substitute. The response adds
+`changed_days`. Every changed day receives its own audit change.
 
 GET `/absences` returns `day`, `today`, `entries`, `planned`, `covered`, and
 `unassigned`. Add `include_cancelled=true` to include cancelled rows; counts

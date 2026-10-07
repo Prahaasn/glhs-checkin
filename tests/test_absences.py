@@ -308,3 +308,25 @@ def test_sqlite_upgrade_adds_plan_column_and_keeps_existing_entries(tmp_path):
         assert plan(upgraded, {"id": 1}, day=THURSDAY, school_days=2).status_code == 201
     with TestClient(app) as restarted:
         assert len(on(restarted, THURSDAY)) == 1
+
+
+def test_cancelling_and_restoring_later_days_keeps_each_days_own_cover(client):
+    person = teacher(client)
+    plan(client, person, "Pat Lee", THURSDAY, school_days=4)
+    for day in ("2026-10-12", "2026-10-13"):
+        assert change(client, on(client, day)[0], "Jordan Gray").status_code == 200
+    thursday = on(client, THURSDAY)[0]
+    cancelled = change(client, thursday, "Pat Lee", cancelled=True, later=later_days(thursday)).json()
+    assert cancelled["changed_days"] == 4
+    names = {day: on(client, day, cancelled=True)[0]["substitute_name"]
+             for day in (THURSDAY, "2026-10-09", "2026-10-12", "2026-10-13")}
+    assert names == {THURSDAY: "Pat Lee", "2026-10-09": "Pat Lee", "2026-10-12": "Jordan Gray", "2026-10-13": "Jordan Gray"}
+    thursday = on(client, THURSDAY, cancelled=True)[0]
+    assert change(client, thursday, "Pat Lee", later=later_days(thursday)).json()["changed_days"] == 4
+    assert [on(client, day)[0]["substitute_name"] for day in ("2026-10-12", "2026-10-13")] == ["Jordan Gray", "Jordan Gray"]
+    monday = client.get(f"/api/absences/{on(client, '2026-10-12')[0]['id']}/changes", headers=ADMIN).json()
+    assert [(item["action"], item["substitute_name"]) for item in monday][:2] == [("restored", "Jordan Gray"), ("cancelled", "Jordan Gray")]
+
+
+def test_plan_past_the_last_representable_date_is_rejected(client):
+    assert plan(client, teacher(client), day="9999-12-31", school_days=2).status_code == 422

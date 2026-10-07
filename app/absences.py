@@ -161,7 +161,10 @@ def register_absences(app, sqlite, db, auth_admin):
             raise HTTPException(404, "Staff member not found.")
         if not teacher.active:
             raise HTTPException(409, "Choose an active staff member.")
-        days = plan_dates(payload.day, payload.school_days)
+        try:
+            days = plan_dates(payload.day, payload.school_days)
+        except OverflowError:
+            raise HTTPException(422, "Choose an earlier first day.")
         taken = list(session.scalars(select(TeacherAbsence.day).where(
             TeacherAbsence.teacher_pk == teacher.id, TeacherAbsence.day.in_(days)).order_by(TeacherAbsence.day)))
         if taken:
@@ -209,10 +212,12 @@ def register_absences(app, sqlite, db, auth_admin):
             raise HTTPException(409, "An inactive staff member's absence cannot be restored.")
         changed, now = 0, int(time.time())
         for row in [entry, *later]:
-            if (row.substitute_name, row.cancelled) == (payload.substitute_name, payload.cancelled):
+            # Cancelling or restoring later days keeps each day's own cover; only cover edits copy the name.
+            name = payload.substitute_name if row is entry or row.cancelled == payload.cancelled else row.substitute_name
+            if (row.substitute_name, row.cancelled) == (name, payload.cancelled):
                 continue
             action = ("cancelled" if payload.cancelled else "restored") if row.cancelled != payload.cancelled else "updated"
-            row.substitute_name, row.cancelled = payload.substitute_name, payload.cancelled
+            row.substitute_name, row.cancelled = name, payload.cancelled
             row.version += 1
             row.updated_at, row.updated_by = now, actor
             audit(session, row, actor, action)

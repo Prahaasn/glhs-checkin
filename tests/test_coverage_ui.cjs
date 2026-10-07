@@ -241,3 +241,13 @@ test('conflict check warns about a double-booked substitute before saving', asyn
   await ui.context.checkCoverageConflicts();
   assert.match(ui.element('coverage-conflict').textContent, /Pat Lee is already covering Jordan Rivera on .*Oct 9/);
 });
+
+test('day stepping waits for the first coverage load instead of throwing', ()=>{
+  const ui = boot();
+  ui.element('coverage-day').value = '';
+  ui.element('coverage-next').onclick();
+  assert.equal(ui.element('coverage-day').value, '');
+  ui.element('coverage-day').value = '2026-10-09';
+  ui.element('coverage-next').onclick();
+  assert.equal(ui.element('coverage-day').value, '2026-10-12');
+});

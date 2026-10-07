@@ -316,10 +316,11 @@ document.addEventListener('DOMContentLoaded', () => {
     clearCoverageRows(); refreshCoverage();
   };
   const moveTo = day => { $('coverage-day').value = day; changeFilter(); };
+  const step = direction => { const from = $('coverage-day').value || coverageToday; if (from) moveTo(stepSchoolDay(from, direction)); };
   $('coverage-day').onchange = changeFilter;
   $('coverage-cancelled').onchange = changeFilter;
-  $('coverage-prev').onclick = () => moveTo(stepSchoolDay($('coverage-day').value || coverageToday, -1));
-  $('coverage-next').onclick = () => moveTo(stepSchoolDay($('coverage-day').value || coverageToday, 1));
+  $('coverage-prev').onclick = () => step(-1);
+  $('coverage-next').onclick = () => step(1);
   $('coverage-today').onclick = () => { if (coverageToday) moveTo(coverageToday); };
   $('coverage-view-day').onclick = () => { setCoverageView('day'); changeFilter(); };
   $('coverage-view-upcoming').onclick = () => { setCoverageView('upcoming'); changeFilter(); };

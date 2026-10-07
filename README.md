@@ -4,6 +4,9 @@
 
 A local school front-office pilot: two barcode scanner stations, printable staff QR badges, and a simple office dashboard. Python **FastAPI + SQLAlchemy**, SQLite locally, PostgreSQL/Supabase later. All demo staff are fictional.
 
+For the prepared Claude project, start with [START-HERE.md](START-HERE.md),
+[working instructions](CLAUDE.md), and the [Claude handoff](docs/CLAUDE-HANDOFF.md).
+
 ## Backend
 
 The backend owns teacher registration, QR badge lookup, station authentication, arrival/departure transactions, presence history, and CSV exports. Both scanner computers connect to this one API. See the [API reference](docs/API.md) for routes, request examples, and retry behavior.

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent, Teacher
 from app.security import BodyLimitMiddleware, FailureLimiter, hash_password, verify_password
 from app.absences import register_absences
+from app.attention import register_attention
 
 STATIC = Path(__file__).parent / "static"
 DUMMY_PASSWORD_HASH = hash_password("nonexistent-office-account")
@@ -432,4 +433,5 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         return Response(buffer.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="staff-checkins.csv"'})
 
     register_absences(app, sqlite, db, auth_admin)
+    register_attention(app, db, auth_admin)
     return app

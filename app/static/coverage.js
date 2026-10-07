@@ -374,11 +374,17 @@ document.addEventListener('DOMContentLoaded', () => {
       })).json();
       if (!connected || role !== 'admin' || dialogVersion !== coverageDialogVersion) return;
       $('coverage-dialog').close(); coverageCheckVersion++;
+      const count = entry ? Math.max(result.changed_days ?? 1, 1) : (result.series ? result.series.total : 1);
+      if (page === 'dashboard') {
+        // Opened from the attention queue: stay on the overview and confirm there.
+        showToast(savedMessage(action, result, count));
+        refresh();
+        return;
+      }
       $('coverage-day').value = result.day;
       if (result.cancelled) $('coverage-cancelled').checked = true;
       setCoverageView('day');
       navigate('coverage');
-      const count = entry ? Math.max(result.changed_days ?? 1, 1) : (result.series ? result.series.total : 1);
       coverageNotice(savedMessage(action, result, count));
       await refreshCoverage();
     } catch (error) {

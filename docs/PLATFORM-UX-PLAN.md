@@ -11,12 +11,12 @@ history. Office users can manage staff and corrections; station users can scan
 but cannot read the office roster. Browser screens share the existing API.
 
 - Setup requires terminal commands and copied enrollment keys.
-- Overview now shows recorded presence and today's planned coverage summary;
-  Absences & cover supports whole school dates and substitute names.
+- Overview shows recorded presence, a Needs attention queue, and today's
+  coverage; Absences & cover plans one or more school days with substitutes.
 - Staff & badges supports one person at a time; replacement immediately revokes
   the old token, so printing is an important step.
-- Office corrections use browser prompts rather than an explicit review form.
-- Activity shows recent scans but offers little help investigating an exception.
+- Office corrections, badge replacement, and deactivation use review dialogs.
+- Activity can be searched, filtered by type, and narrowed to one day.
 - Offline/stale states exist, but recovery instructions and readiness need a
   clearer place in the daily workflow.
 
@@ -40,15 +40,20 @@ substitute arrived or an automatic badge/account.
 
 1. **Repeatable rehearsal:** isolated fresh demo, printable codes, launcher, and
    verification. This makes subsequent product review reproducible.
-2. **Absences and substitute coverage (implemented):** office records an absence for a school
-   date, assigns or changes a substitute, cancels an absence, and sees today's
-   coverage. Preserve scan history and role isolation.
-3. **Exception handling:** replace browser prompts with accessible forms that
-   clearly show the staff member, explicit status, reason, and final action.
+2. **Absences and substitute coverage (implemented):** office records an absence for one
+   or more school days, assigns or changes a substitute for a day or the rest of
+   the plan, cancels an absence, and sees today's and the next two weeks' coverage.
+   Preserve scan history and role isolation.
+3. **Exception handling (implemented):** review dialogs show the staff member,
+   recorded status, explicit IN/OUT, reason, and final action; corrections retry
+   with the same request ID like scans.
 4. **Setup and badge workflow:** guided readiness and printing/replacement;
    evaluate batch issuance without retaining real badge tokens unnecessarily.
-5. **Overview and activity:** make presence, coverage gaps, stale data, and recent
-   changes easy to act on; verify desk and narrow layouts.
+5. **Overview and activity (implemented):** the Needs attention queue lists cover
+   gaps, planned-out staff recorded IN, staff still IN from an earlier day,
+   double-booked substitutes, upcoming gaps, and staff with no arrival today, each
+   with a reviewed fix. The roster tags planned-out staff; Activity filters by
+   type and day. Nothing in the queue writes records on its own.
 
 Each implementation needs a rendered review and a testable user outcome. Keep
 the existing calm visual style and shared server as the starting point. Avoid a

@@ -13,7 +13,9 @@ The browser uses plain HTML/CSS/JavaScript and existing APIs; follow those
 patterns before introducing another framework.
 
 - app/main.py owns authentication, staff/badges, scans, corrections, and exports.
-- app/absences.py owns office-only planned absences and substitute coverage.
+- app/absences.py owns office-only planned absences and substitute coverage,
+  including multi-day plans that share a series ID.
+- app/attention.py owns the read-only overview attention queue.
 - app/models.py owns the persisted state and audit tables.
 - app/static/ owns the office and station screens.
 - app/local_demo.py creates isolated fictional rehearsals and printable badges.

@@ -25,6 +25,7 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 | PATCH | `/absences/{id}` | Office | Assign/reassign cover, cancel, or restore one day or this day and later days, with version checking |
 | GET | `/absences/{id}/changes` | Office | Latest 50 coverage changes with office actor |
 | GET | `/substitutes` | Office | Substitute names used on active plans in the last year, newest first |
+| GET | `/attention` | Office | Today's exceptions with suggested reviewed actions (read-only) |
 
 `/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
 
@@ -104,6 +105,29 @@ counts. Coverage history is separate from scan history and CSV exports.
 All coverage routes reject station access. An assignment creates no substitute
 account, badge, or attendance scan. A lost save response should be resolved by
 refreshing the date before retrying.
+
+## Attention queue
+
+GET `/attention` is read-only. It returns `today`, `day_start` (Eastern midnight
+as a Unix timestamp), `items`, `not_arrived` (active staff IDs with no IN scan or
+correction today, no plan for today, and not recorded IN; empty on weekends),
+`planned_today`, and today's `coverage` counts. Items, in order:
+
+| `kind` | When |
+| --- | --- |
+| `planned_out_but_in` | Planned out today and recorded IN with an IN scan today |
+| `needs_cover_today` | Planned out today with no substitute |
+| `stale_in` | Recorded IN since before today with no scan of any kind today |
+| `double_booked` | One substitute name (case/space-insensitive) on two plans the same day, within 14 days |
+| `needs_cover_upcoming` | Later days without a substitute within 14 days, one item per plan |
+| `not_arrived` | Summary of `not_arrived` (informational) |
+
+Each item has a `tone` (`warning`, `action`, `info`), a `title`, a `detail`, and
+`actions` the office reviews before anything is saved: `edit_cover` and
+`cancel_absence` open that absence's dialog, `correct` opens a correction with a
+suggested direction and reason, `open_day` opens a coverage date, and
+`show_not_arrived` filters the roster. Inactive staff and cancelled plans are
+excluded. The queue never checks anyone out or reassigns cover automatically.
 
 ## Storage and rollout
 

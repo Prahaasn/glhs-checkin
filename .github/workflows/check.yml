@@ -33,5 +33,7 @@ jobs:
           node-version: '22'
       - run: node --check app/static/app.js
       - run: node --check app/static/coverage.js
-      - run: node --test tests/test_coverage_ui.cjs
+      - run: node --check app/static/dialogs.js
+      - run: node --check app/static/attention.js
+      - run: node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs
       - run: sh -n 'Open in Claude.command'

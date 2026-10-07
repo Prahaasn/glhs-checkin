@@ -14,6 +14,22 @@ Supabase is PostgreSQL hosting here. SQLAlchemy connects from the Python server;
 4. Run the Python app with that URL; register fictional teachers again. This does **not** migrate an existing SQLite roster/history automatically. Retain the local database until a separately tested migration is complete.
 5. Before using real staff, verify HTTPS, role isolation, the API access boundaries, private schema exposure, concurrent scans, idempotent retries, backups/restores, and both physical scanners. Current verification covers SQLite and local PostgreSQL 16; no hosted Supabase project has been connected or provisioned. If upgrading a prior pilot database, review and create the additive `office_users` and `office_sessions` tables before starting the new version; this change does not rewrite teacher records.
 
+For an existing PostgreSQL pilot, absence coverage requires the reviewed
+[additive migration](migrations/2026-10-07-absence-coverage.sql) before running
+the new application. Take a database backup, review the two new tables and
+grants, and apply the SQL with the provisioning role in a transaction. It leaves
+existing roster, scan events, and sessions intact; it does not grant the
+application role new access automatically. Grant that restricted role only the
+required table and sequence privileges through the school's provisioning
+process. Keep school_checkin outside the exposed Data API schemas. Hosted
+Supabase execution remains unverified; CI verifies the migration on PostgreSQL
+16 with existing attendance records.
+
+Fresh provisioning through init-postgres creates all model tables. SQLite
+locally creates the two missing tables on startup. Neither path upgrades columns
+in tables that already exist. To roll back the app, retain the added tables and
+coverage history and revert the application commit.
+
 Sources researched for this design:
 
 - [Supabase: Using SQLAlchemy](https://supabase.com/docs/guides/troubleshooting/using-sqlalchemy-with-supabase-FUqebT)

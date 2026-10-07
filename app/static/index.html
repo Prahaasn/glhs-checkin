@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GLHS · Staff presence</title>
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/coverage.js" defer></script>
 <script src="/static/app.js" defer>
 </script>
 </head>
@@ -18,6 +19,7 @@
   <nav aria-label="Main navigation">
 <button class="nav active" data-page="dashboard">Overview</button>
 <button class="nav" data-page="teachers">Staff & badges</button>
+<button class="nav" data-page="coverage">Absences & cover</button>
 <button class="nav" data-page="history">Activity</button>
 <button class="nav" data-page="kiosk">Scanner station</button>
 </nav>
@@ -92,7 +94,11 @@
 <strong id="unknown-count">0</strong>
 <small>No scan yet</small>
 </article>
-</div>
+  </div>
+  <article class="panel coverage-summary">
+    <div><h2>Today's planned absences</h2><p id="coverage-summary-text">Loading coverage…</p></div>
+    <button class="secondary" data-page="coverage">Manage cover</button>
+  </article>
   <div class="dashboard-grid">
     <article class="panel roster-panel">
 <div class="panel-heading">
@@ -204,6 +210,35 @@
 </div>
 </div>
 </section>
+<section id="coverage" class="page" hidden>
+  <div class="page-title">
+    <div><div class="eyebrow">DAILY STAFF COVERAGE</div><h1>Absences & cover</h1>
+      <p>Plan who's out and who will cover. Recorded scan status is shown separately.</p></div>
+    <button id="coverage-add" class="primary">Plan absence</button>
+  </div>
+  <div class="coverage-toolbar">
+    <label>School date <input id="coverage-day" type="date" required></label>
+    <label class="checkbox-label"><input id="coverage-cancelled" type="checkbox"> Show cancelled</label>
+    <span id="coverage-sync">Waiting for server</span>
+  </div>
+  <p id="coverage-message" role="status" aria-live="polite"></p>
+  <div class="stats">
+    <article class="stat"><div>PLANNED ABSENCES</div><strong id="coverage-planned">—</strong><small>For the selected school date</small></article>
+    <article class="stat out-stat"><div>SUBSTITUTE ASSIGNED</div><strong id="coverage-covered">—</strong><small>Coverage names recorded</small></article>
+    <article class="stat unknown-stat"><div>NEEDS COVER</div><strong id="coverage-unassigned">—</strong><small>Substitute not assigned yet</small></article>
+  </div>
+  <div class="panel table-wrap">
+    <table><thead><tr><th>STAFF MEMBER</th><th>SUBSTITUTE</th><th>RECORDED NOW</th><th>LAST UPDATED</th><th>ACTIONS</th></tr></thead>
+      <tbody id="coverage-rows"><tr><td colspan="5" class="empty">Loading planned absences…</td></tr></tbody>
+    </table>
+  </div>
+  <p class="coverage-scroll-hint">Scroll across the table to see coverage actions.</p>
+  <p class="safety-note">Dates follow the school's Eastern time zone. A substitute assignment does not record the substitute's arrival.</p>
+  <section id="coverage-audit" class="panel coverage-audit" hidden>
+    <div class="panel-heading"><h2 id="coverage-audit-title">Coverage changes</h2><button id="coverage-audit-close" class="text-button">Close history</button></div>
+    <p>Latest 50 changes, most recent first.</p><ul id="coverage-audit-list"></ul>
+  </section>
+</section>
 <section id="history" class="page" hidden>
 <div class="page-title">
 <div>
@@ -250,6 +285,17 @@
 </article>
 </section>
 </div>
+<dialog id="coverage-dialog" aria-labelledby="coverage-dialog-title">
+  <form id="coverage-form">
+    <div class="eyebrow">PLANNED COVERAGE</div><h2 id="coverage-dialog-title">Plan an absence</h2>
+    <p id="coverage-dialog-description">Select the staff member and school date. You can assign cover later.</p>
+    <label>Staff member <select id="coverage-teacher" required></select></label>
+    <label>Absence date <input id="coverage-form-day" type="date" required></label>
+    <label>Substitute name <input id="coverage-substitute" maxlength="120" placeholder="Leave blank if cover is not assigned" autocomplete="off"></label>
+    <p id="coverage-form-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button id="coverage-dialog-close" type="button" class="secondary">Close</button><button id="coverage-save" class="primary">Save absence</button></div>
+  </form>
+</dialog>
 <footer>Green Level High School · Local pilot</footer>
 </main>
 </body>

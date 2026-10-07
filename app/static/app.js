@@ -13,6 +13,7 @@ async function api(path, options = {}) {
 }
 function clearLocal() {
   refreshVersion++; connected=false; role=null; stationName=null;
+  clearCoverage();
   staff=[];events=[];pending=null;
   $('workspace').hidden=true;$('login').hidden=false;$('sidebar').hidden=true;document.querySelector('nav').hidden=false;document.body.classList.remove('station-view');
   $('access-key').value='';$('password').value='';$('scan-code').value='';
@@ -96,6 +97,7 @@ async function refresh() {
   $('recent').innerHTML=events.slice(0,6).map(e=>`<div class="activity-item"><span class="avatar">${e.direction==='in'?'↙':'↗'}</span><div><strong>${esc(e.name)}</strong><p>${e.changed?'Checked':'Already'} ${esc(e.direction)} · ${esc(e.station)}</p><small>${esc(dateTime(e.occurred_at))}</small></div></div>`).join('')||'<div class="empty">No scans yet. Your school day starts here.</div>';
   $('event-table').innerHTML=events.map(e=>`<tr><td>${esc(e.name)}<small>${esc(e.teacher_id)}</small></td><td>${e.changed?'Checked':'Already'} ${esc(e.direction)}</td><td>${esc(e.station)}</td><td>${esc(dateTime(e.occurred_at))}</td><td>${esc(e.reason || (e.changed?'':'Repeat scan; no status change'))}</td></tr>`).join('');
   directoryStaff=directory;renderDirectory();
+  refreshCoverage();
   $('notice').textContent='';$('notice').hidden=true;
  }catch(error){if(version!==refreshVersion)return;$('notice').textContent='Dashboard could not refresh. Displayed data may be stale. '+error.message;$('notice').hidden=false;$('sync').textContent='Connection lost — data may be stale';$('live-status').textContent='⚠ Stale';}
 }
@@ -132,7 +134,7 @@ $('kiosk').addEventListener('click',e=>{if(role==='station' && !pending && !e.ta
 // Unknown badges and validation errors are definitive failures, not ambiguous network failures.
 // The retry button preserves the request ID so a lost response cannot record twice.
 setInterval(()=>{$('clock').textContent=new Date().toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})+' · '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});},1000);
-setInterval(()=>{if(page==='dashboard'||page==='history')refresh();},5000);
+setInterval(()=>{if(page==='dashboard'||page==='history'||page==='coverage')refresh();},5000);
 // Remove legacy key storage from earlier pilot versions. Browser sessions use HttpOnly cookies.
 sessionStorage.removeItem('key');sessionStorage.removeItem('role');
 api('/session').then(r=>r.json()).then(connect).catch(()=>clearLocal());

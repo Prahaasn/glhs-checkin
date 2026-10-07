@@ -19,6 +19,10 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 | GET | `/presence?at={epoch}` | Office | Recorded presence at a past Unix timestamp |
 | GET | `/events` | Office | Latest 200 audit events |
 | GET | `/export` | Office | Full history as CSV, timestamps in UTC |
+| GET | `/absences?day=YYYY-MM-DD` | Office | Planned coverage for a school date; defaults to today in Eastern time |
+| POST | `/absences` | Office | Plan one absence per teacher and school date |
+| PATCH | `/absences/{id}` | Office | Assign/reassign cover, cancel, or restore with version checking |
+| GET | `/absences/{id}/changes` | Office | Latest 50 coverage changes with office actor |
 
 `/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
 
@@ -59,6 +63,28 @@ A successful scanner beep alone does not prove server acceptance; require the ap
 `POST /badge-image` currently accepts the scan-shaped payload above and returns `image/png`; the direction and UUID are validated but no scan is recorded. The registration screen handles this automatically.
 
 `POST /teachers/{id}/correction` accepts `direction`, a fresh `request_id`, and a `reason` of 3–240 characters. Corrections use the same atomic state/event transaction. Corrections made through named office sessions include that account's display name in the activity log; legacy administrator-key corrections show as `office`.
+
+## Planned absences and substitute coverage
+
+POST `/absences` accepts `teacher_pk` (database ID), `day` (ISO school date),
+and `substitute_name` (null or up to 120 characters). Blank names become null.
+Only active staff can receive a new plan. A duplicate teacher/date returns 409,
+including cancelled entries: edit or restore that entry instead.
+
+PATCH `/absences/{id}` requires the entry's current `version`, `cancelled`
+(boolean), and `substitute_name`. A stale version returns 409 rather than
+overwriting another office user's changes. Staff/date remain fixed; cancel and
+create the correct date when rescheduling. No-op saves leave the version and
+history unchanged. Cancelled entries can be restored for active staff.
+
+GET `/absences` returns `day`, `today`, `entries`, `planned`, `covered`, and
+`unassigned`. Add `include_cancelled=true` to include cancelled rows; counts
+still exclude them. Entries include the office actor, change timestamp, version,
+and the teacher's **current** recorded presence, even when viewing another
+school date. Coverage history is separate from scan history and CSV exports.
+All four routes reject station access. An assignment creates no substitute
+account, badge, or attendance scan. A lost save response should be resolved by
+refreshing the date before retrying.
 
 ## Storage and rollout
 

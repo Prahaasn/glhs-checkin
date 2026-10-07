@@ -32,3 +32,4 @@ jobs:
         with:
           node-version: '22'
       - run: node --check app/static/app.js
+      - run: node --check app/static/coverage.js

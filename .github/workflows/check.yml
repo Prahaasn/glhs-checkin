@@ -34,3 +34,4 @@ jobs:
       - run: node --check app/static/app.js
       - run: node --check app/static/coverage.js
       - run: node --test tests/test_coverage_ui.cjs
+      - run: sh -n 'Open in Claude.command'

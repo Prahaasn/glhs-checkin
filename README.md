@@ -83,6 +83,7 @@ uv run --extra dev --extra demo pytest -q
 # to run the same API cases against both SQLite and PostgreSQL.
 node --check app/static/app.js
 node --check app/static/coverage.js
+node --test tests/test_coverage_ui.cjs
 ```
 
 See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.

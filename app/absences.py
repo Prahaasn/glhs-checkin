@@ -97,12 +97,16 @@ def register_absences(app, sqlite, db, auth_admin):
     @app.patch("/api/absences/{pk}")
     def update_absence(pk: int, payload: AbsenceUpdate, actor=Depends(auth_admin), session: Session = Depends(db)):
         begin_write(session)
+        teacher_pk = session.scalar(select(TeacherAbsence.teacher_pk).where(TeacherAbsence.id == pk))
+        if teacher_pk is None:
+            raise HTTPException(404, "Absence not found.")
+        # Teacher first, matching scan/deactivation and plan-creation lock order.
+        teacher = session.scalar(select(Teacher).where(Teacher.id == teacher_pk).with_for_update())
         entry = session.scalar(select(TeacherAbsence).where(TeacherAbsence.id == pk).with_for_update())
         if not entry:
             raise HTTPException(404, "Absence not found.")
         if entry.version != payload.version:
             raise HTTPException(409, "This absence changed. Close and reopen the entry before saving.")
-        teacher = session.get(Teacher, entry.teacher_pk)
         if entry.cancelled and not payload.cancelled and not teacher.active:
             raise HTTPException(409, "An inactive staff member's absence cannot be restored.")
         if (entry.substitute_name, entry.cancelled) != (payload.substitute_name, payload.cancelled):

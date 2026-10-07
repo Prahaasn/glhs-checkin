@@ -83,11 +83,16 @@ async function refresh() {
  if(role!=='admin'||!connected)return;
  const version=++refreshVersion;
  try {
+  refreshCoverage();
   const snapshot=$('as-of').value;
   const path=snapshot?'/presence?at='+Math.floor(new Date(snapshot).getTime()/1000):'/teachers';
   const rosterRequest=api(path).then(r=>r.json());
   const directoryRequest=snapshot?api('/teachers').then(r=>r.json()):rosterRequest;
-  const [roster,activity,directory]=await Promise.all([rosterRequest,api('/events').then(r=>r.json()),directoryRequest]);
+  directoryRequest.then(directory=>{
+    if(role!=='admin'||!connected||version!==refreshVersion)return;
+    directoryStaff=directory;renderDirectory();
+  }).catch(()=>{}); // The aggregate below reports directory failures.
+  const [roster,activity]=await Promise.all([rosterRequest,api('/events').then(r=>r.json()),directoryRequest]);
   if(role!=='admin'||!connected||version!==refreshVersion)return;
   staff=roster.filter(t=>t.active||snapshot);events=activity;
   renderRoster();
@@ -96,8 +101,6 @@ async function refresh() {
   $('sync').textContent='Updated '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
   $('recent').innerHTML=events.slice(0,6).map(e=>`<div class="activity-item"><span class="avatar">${e.direction==='in'?'↙':'↗'}</span><div><strong>${esc(e.name)}</strong><p>${e.changed?'Checked':'Already'} ${esc(e.direction)} · ${esc(e.station)}</p><small>${esc(dateTime(e.occurred_at))}</small></div></div>`).join('')||'<div class="empty">No scans yet. Your school day starts here.</div>';
   $('event-table').innerHTML=events.map(e=>`<tr><td>${esc(e.name)}<small>${esc(e.teacher_id)}</small></td><td>${e.changed?'Checked':'Already'} ${esc(e.direction)}</td><td>${esc(e.station)}</td><td>${esc(dateTime(e.occurred_at))}</td><td>${esc(e.reason || (e.changed?'':'Repeat scan; no status change'))}</td></tr>`).join('');
-  directoryStaff=directory;renderDirectory();
-  refreshCoverage();
   $('notice').textContent='';$('notice').hidden=true;
  }catch(error){if(version!==refreshVersion)return;$('notice').textContent='Dashboard could not refresh. Displayed data may be stale. '+error.message;$('notice').hidden=false;$('sync').textContent='Connection lost — data may be stale';$('live-status').textContent='⚠ Stale';}
 }

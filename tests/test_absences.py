@@ -1,12 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import date
 from pathlib import Path
+from threading import Event
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.orm import Session
 
-from app.models import OfficeUser
+from app.models import OfficeUser, Teacher
 from app.security import hash_password
 from test_checkin import ADMIN, ONE, client, scan, teacher
 
@@ -141,3 +142,34 @@ def test_postgres_migration_preserves_existing_scans_and_supports_coverage(clien
     assert entry["presence"] == "in" and entry["substitute_name"] == "Pat Lee"
     assert change(client, entry, "Jordan Gray").status_code == 200
     assert len(client.get(f"/api/absences/{entry['id']}/changes", headers=ADMIN).json()) == 2
+
+
+def test_restore_waits_for_deactivation_and_rechecks_committed_staff_state(client):
+    engine = client.app.state.engine
+    if engine.dialect.name != "postgresql":
+        pytest.skip("SQLite serializes all writers; this exercises PostgreSQL row-lock contention.")
+    person = teacher(client)
+    entry = change(client, plan(client, person).json(), cancelled=True).json()
+    attempted_read = Event()
+
+    def observe_read(connection, cursor, statement, parameters, context, executemany):
+        if "select" in statement.lower() and "teachers" in statement.lower():
+            attempted_read.set()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with Session(engine) as deactivation:
+            deactivation.get(Teacher, person["id"]).active = False
+            deactivation.flush()  # Hold the same teacher-row write lock as deactivation.
+            event.listen(engine, "before_cursor_execute", observe_read)
+            future = executor.submit(change, client, entry)
+            try:
+                assert attempted_read.wait(5), "Restore did not reach the teacher read"
+                with pytest.raises(TimeoutError):
+                    future.result(timeout=0.5)
+            finally:
+                deactivation.commit()
+                event.remove(engine, "before_cursor_execute", observe_read)
+        assert future.result(timeout=5).status_code == 409
+    assert not client.get("/api/teachers", headers=ADMIN).json()[0]["active"]
+    plans = client.get(f"/api/absences?day={DAY}&include_cancelled=true", headers=ADMIN).json()
+    assert plans["entries"][0]["cancelled"] and plans["planned"] == 0

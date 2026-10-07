@@ -32,7 +32,8 @@ save, refresh the date to check whether it was saved before retrying.
 
 The source of truth is TeacherAbsence plus its append-only AbsenceChange rows.
 Both save in one transaction. SQLite serializes writers; PostgreSQL locks the
-target row. Coverage changes never write Teacher.inside, Teacher.last_seen, or
+teacher before the absence row, so restore checks wait for a pending
+deactivation. Coverage changes never write Teacher.inside, Teacher.last_seen, or
 ScanEvent. Naming a substitute creates no login, badge, or substitute attendance.
 Only office accounts and the administrator API can use coverage routes.
 

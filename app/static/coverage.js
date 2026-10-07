@@ -1,5 +1,12 @@
 let coverageEntries = [], coverageVersion = 0, coverageAuditVersion = 0;
 let coverageEditing = null, coverageAction = 'create';
+let coverageLoadedDay = null, coverageDialogVersion = 0;
+
+function clearCoverageRows() {
+  coverageEntries = []; coverageLoadedDay = null;
+  $('coverage-rows').innerHTML = '<tr><td colspan="5" class="empty">Loading planned absences…</td></tr>';
+  ['coverage-planned','coverage-covered','coverage-unassigned'].forEach(id => $(id).textContent = '—');
+}
 
 function coverageNotice(message, error = false) {
   $('coverage-message').textContent = message;
@@ -7,9 +14,12 @@ function coverageNotice(message, error = false) {
 }
 
 function clearCoverage() {
-  coverageVersion++; coverageAuditVersion++; coverageEntries = []; coverageEditing = null;
+  coverageVersion++; coverageAuditVersion++; coverageDialogVersion++;
+  coverageEntries = []; coverageLoadedDay = null; coverageEditing = null;
   if ($('coverage-dialog').open) $('coverage-dialog').close();
   $('coverage-form').reset();
+  $('coverage-day').value = '';
+  $('coverage-cancelled').checked = false;
   ['coverage-rows','coverage-teacher','coverage-audit-list'].forEach(id => $(id).replaceChildren());
   $('coverage-audit').hidden = true;
   $('coverage-audit-title').textContent = 'Coverage changes';
@@ -23,13 +33,17 @@ async function refreshCoverage() {
   if (role !== 'admin' || !connected) return;
   const version = ++coverageVersion;
   const params = new URLSearchParams();
-  if (page === 'coverage' && $('coverage-day').value) params.set('day', $('coverage-day').value);
+  if (page === 'coverage' && $('coverage-day').value) {
+    params.set('day', $('coverage-day').value);
+    if (coverageLoadedDay !== $('coverage-day').value) clearCoverageRows();
+  }
   if (page === 'coverage' && $('coverage-cancelled').checked) params.set('include_cancelled', 'true');
   try {
     const data = await (await api('/absences?' + params)).json();
     if (version !== coverageVersion || role !== 'admin' || !connected) return;
     if (!$('coverage-day').value) $('coverage-day').value = data.today;
     coverageEntries = data.entries;
+    coverageLoadedDay = data.day;
     if ($('coverage-message').dataset.error === 'true') coverageNotice('');
     if (page === 'dashboard') {
       $('coverage-summary-text').textContent = data.planned + ' planned · ' + data.covered + ' assigned · ' + data.unassigned + ' need cover';
@@ -55,6 +69,8 @@ async function refreshCoverage() {
 }
 
 function openCoverage(action, entry = null) {
+  coverageDialogVersion++;
+  $('coverage-save').disabled = false;
   coverageAction = action; coverageEditing = entry ? {...entry} : null;
   $('coverage-form-error').textContent = '';
   const staffOptions = directoryStaff.filter(person => person.active || person.id === entry?.teacher_pk);
@@ -91,10 +107,15 @@ async function showCoverageHistory(entry) {
 
 document.addEventListener('DOMContentLoaded', () => {
   $('coverage-add').onclick = () => openCoverage('create');
-  $('coverage-dialog-close').onclick = () => $('coverage-dialog').close();
+  $('coverage-dialog-close').onclick = () => { coverageDialogVersion++; $('coverage-dialog').close(); };
+  $('coverage-dialog').addEventListener('cancel', () => { coverageDialogVersion++; });
   $('coverage-audit-close').onclick = () => { coverageAuditVersion++; $('coverage-audit').hidden = true; };
-  $('coverage-day').onchange = () => { coverageAuditVersion++; $('coverage-audit').hidden = true; coverageNotice(''); refreshCoverage(); };
-  $('coverage-cancelled').onchange = refreshCoverage;
+  const changeFilter = () => {
+    coverageAuditVersion++; $('coverage-audit').hidden = true; coverageNotice('');
+    clearCoverageRows(); refreshCoverage();
+  };
+  $('coverage-day').onchange = changeFilter;
+  $('coverage-cancelled').onchange = changeFilter;
   $('coverage-rows').onclick = event => {
     const button = event.target.closest('button[data-absence]');
     if (!button) return;
@@ -106,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('coverage-form').onsubmit = async event => {
     event.preventDefault();
     const action = coverageAction, entry = coverageEditing;
+    const dialogVersion = coverageDialogVersion;
     $('coverage-save').disabled = true; $('coverage-form-error').textContent = '';
     try {
       const payload = {substitute_name: $('coverage-substitute').value.trim() || null};
@@ -114,14 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await (await api('/absences' + (entry ? '/' + entry.id : ''), {
         method: entry ? 'PATCH' : 'POST', body: JSON.stringify(payload)
       })).json();
-      if (!connected || role !== 'admin') return;
+      if (!connected || role !== 'admin' || dialogVersion !== coverageDialogVersion) return;
       $('coverage-dialog').close(); $('coverage-day').value = result.day;
       if (result.cancelled) $('coverage-cancelled').checked = true;
       navigate('coverage');
       coverageNotice(result.cancelled ? 'Absence cancelled. The entry and history are preserved.' : 'Planned coverage saved for ' + result.name + '.');
       await refreshCoverage();
     } catch (error) {
-      if (connected) $('coverage-form-error').textContent = error.message + (error.status ? '' : ' Refresh this date before retrying; the save was not confirmed.');
-    } finally { $('coverage-save').disabled = false; }
+      if (connected && dialogVersion === coverageDialogVersion) $('coverage-form-error').textContent = error.message + (error.status ? '' : ' Refresh this date before retrying; the save was not confirmed.');
+    } finally { if (dialogVersion === coverageDialogVersion) $('coverage-save').disabled = false; }
   };
 });

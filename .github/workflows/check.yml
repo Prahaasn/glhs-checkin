@@ -26,8 +26,8 @@ jobs:
         with:
           version: '0.9.0'
       - run: uv python install 3.12
-      - run: uv sync --extra dev --locked --python 3.12
-      - run: uv run pytest -q
+      - run: uv sync --extra dev --extra demo --locked --python 3.12
+      - run: uv run --extra dev --extra demo pytest -q
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

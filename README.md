@@ -10,6 +10,18 @@ The backend owns teacher registration, QR badge lookup, station authentication, 
 
 ## Run locally
 
+For a fresh scanner rehearsal with eight fictional staff, zero scans, generated
+office credentials, and a printable Code128/QR badge sheet:
+
+~~~sh
+uv run --extra demo python -m app.local_demo create
+~~~
+
+Open the generated data/scanner-demo-…/START-HERE.md, then run its start.command.
+Each run creates a separate database and new badges; restarting the launcher
+preserves that demo's scans. Existing school data and .env are preserved.
+See [local rehearsal details](docs/LOCAL-DEMO.md).
+
 Install Python 3.11+ and [uv](https://docs.astral.sh/uv/). Then:
 
 ```sh
@@ -59,7 +71,7 @@ The verified directory snapshot contained **141 staff across 16 pages** on Septe
 ## Verify
 
 ```sh
-uv run --extra dev pytest -q
+uv run --extra dev --extra demo pytest -q
 # Optional: set TEST_DATABASE_URL to a local PostgreSQL database ending in _test
 # to run the same API cases against both SQLite and PostgreSQL.
 node --check app/static/app.js

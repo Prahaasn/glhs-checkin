@@ -59,7 +59,7 @@ class OfficeLoginInput(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
-def create_app(database_url=None, admin_key=None, station_keys=None):
+def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hosts=None):
     url = database_url or os.getenv("DATABASE_URL", "sqlite:///./data/checkin.db")
     admin = admin_key or os.getenv("ADMIN_KEY")
     stations = station_keys or {"front-1": os.getenv("STATION_1_KEY"), "front-2": os.getenv("STATION_2_KEY")}
@@ -96,7 +96,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None):
     limiter = FailureLimiter()
     badge_limiter = FailureLimiter(limit=30)
     default_hosts = "127.0.0.1,localhost,[::1]" + (",testserver" if database_url else "")
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.getenv("ALLOWED_HOSTS", default_hosts).split(","))
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts or os.getenv("ALLOWED_HOSTS", default_hosts).split(","))
     app.add_middleware(BodyLimitMiddleware)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

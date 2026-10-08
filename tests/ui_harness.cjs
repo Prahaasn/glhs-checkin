@@ -23,7 +23,8 @@ const deferred = () => {
 const flush = () => new Promise(done => setImmediate(done));
 
 function boot(routes = {}) {
-  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = [];
+  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = new Map();
+  let timerId = 0;
   const element = id => {
     if (!elements.has(id)) {
       const item = {id, value:'', textContent:'', innerHTML:'', checked:false,
@@ -42,7 +43,7 @@ function boot(routes = {}) {
       body:{classList:{remove(){},toggle(){}}}},
     URLSearchParams, URL, Date, crypto:{randomUUID:()=>'00000000-0000-4000-8000-' + String(sent.length).padStart(12, '0')},
     // Timers are held until a test runs them, so delayed UI resets can be checked deterministically.
-    setInterval(){}, setTimeout(handler){timers.push(handler); return timers.length;}, clearTimeout(id){if (id) timers[id - 1] = null;},
+    setInterval(){}, setTimeout(handler){timers.set(++timerId, handler); return timerId;}, clearTimeout(id){timers.delete(id);},
     encodeURIComponent,
     sessionStorage:{removeItem(){},getItem(){return null;},setItem(){}},
     fetch:async(url, options={})=>{
@@ -70,7 +71,7 @@ function boot(routes = {}) {
   (listeners.DOMContentLoaded || []).forEach(handler => handler());
   vm.runInContext("role='admin';connected=true;page='coverage';directoryStaff=" + JSON.stringify(staff), context);
   element('coverage-day').value = DAY;
-  const runTimers = () => timers.splice(0).forEach(handler => handler && handler());
+  const runTimers = () => { const due = [...timers.values()]; timers.clear(); due.forEach(handler => handler()); };
   return {context, element, requests, sent, runTimers, read:code=>vm.runInContext(code,context)};
 }
 

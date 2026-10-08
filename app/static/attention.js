@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!action) return;
     button.disabled = true;
     try { await runAttentionAction(action); }
-    catch (error) { showToast(error.message); refreshAttention(); }
+    catch (error) { if (connected) { showToast(error.message); refreshAttention(); } }
     finally { button.disabled = false; }
   };
 });

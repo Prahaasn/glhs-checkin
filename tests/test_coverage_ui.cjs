@@ -251,3 +251,27 @@ test('day stepping waits for the first coverage load instead of throwing', ()=>{
   ui.element('coverage-next').onclick();
   assert.equal(ui.element('coverage-day').value, '2026-10-12');
 });
+
+test('conflict check covers a long plan in range-sized windows', async()=>{
+  const late = {...entry, id:9, teacher_pk:9, name:'Jordan Rivera', day:'2026-12-15', substitute_name:'Pat Lee'};
+  let ui;
+  ui = boot({'/absences/range':()=>{
+    const url = new URL(ui.sent[ui.sent.length - 1].url, 'http://local.test');
+    const [start, end] = [url.searchParams.get('start'), url.searchParams.get('end')];
+    return response({...range, start, end, days:start <= late.day && late.day <= end ? [{day:late.day, entries:[late]}] : []});
+  }});
+  ui.context.openCoverage('create');
+  ui.element('coverage-teacher').value = '1';
+  ui.element('coverage-form-day').value = '2026-10-08';
+  ui.element('coverage-days').value = '90';
+  ui.element('coverage-substitute').value = 'Pat Lee';
+  await ui.context.checkCoverageConflicts();
+  const windows = ui.sent.filter(item => item.route === '/absences/range').map(item => {
+    const url = new URL(item.url, 'http://local.test');
+    return [url.searchParams.get('start'), url.searchParams.get('end')];
+  });
+  assert.ok(windows.length >= 3);
+  assert.equal(windows[0][0], '2026-10-08');
+  for (const [start, end] of windows) assert.ok((Date.parse(end) - Date.parse(start)) / 86400000 < 62);
+  assert.match(ui.element('coverage-conflict').textContent, /Pat Lee is already covering Jordan Rivera on .*Dec 15/);
+});

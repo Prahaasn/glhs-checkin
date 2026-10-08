@@ -2,7 +2,7 @@ let coverageEntries = [], coverageVersion = 0, coverageAuditVersion = 0;
 let coverageEditing = null, coverageAction = 'create';
 let coverageLoadedDay = null, coverageDialogVersion = 0;
 let coverageView = 'day', coverageToday = null, coverageCheckVersion = 0, coverageCheckTimer = null;
-const MAX_PLAN_DAYS = 90, UPCOMING_DAYS = 14, SHORT_DAY = {weekday:'short', month:'short', day:'numeric'};
+const MAX_PLAN_DAYS = 90, UPCOMING_DAYS = 14, RANGE_WINDOW_DAYS = 62, SHORT_DAY = {weekday:'short', month:'short', day:'numeric'};
 
 // School dates are calendar days, so date math stays in UTC to avoid daylight-saving shifts.
 const isoDate = iso => new Date(iso + 'T00:00:00Z');
@@ -223,10 +223,16 @@ async function checkCoverageConflicts() {
   if (!dates.length || coverageAction === 'cancel' || (!name && (coverageAction !== 'create' || !teacher))) return;
   const start = dates[0], end = [...dates].sort().pop();
   try {
-    const data = await (await api('/absences/range?start=' + start + '&end=' + (end < addDays(start, 61) ? end : addDays(start, 61)))).json();
+    // The range endpoint serves at most 62 days, so a long plan is checked in consecutive windows.
+    const windows = [];
+    for (let from = start; from <= end; from = addDays(from, RANGE_WINDOW_DAYS)) {
+      const to = addDays(from, RANGE_WINDOW_DAYS - 1);
+      windows.push(api('/absences/range?start=' + from + '&end=' + (to < end ? to : end)).then(response => response.json()));
+    }
+    const planned = (await Promise.all(windows)).flatMap(data => data.days);
     if (version !== coverageCheckVersion || !$('coverage-dialog').open) return;
     const wanted = new Set(dates), warnings = [];
-    data.days.filter(day => wanted.has(day.day)).forEach(day => day.entries.forEach(other => {
+    planned.filter(day => wanted.has(day.day)).forEach(day => day.entries.forEach(other => {
       if (coverageAction === 'create' && other.teacher_pk === teacher) {
         warnings.push(other.name + ' already has an absence on ' + dayLabel(day.day) + '; saving will be refused.');
       } else if (name && other.teacher_pk !== teacher && personName(other.substitute_name) === personName(name)) {

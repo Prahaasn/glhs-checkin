@@ -64,7 +64,9 @@ For a supervised LAN pilot, set `ALLOWED_HOSTS` to the exact school-approved hos
 - Dashboard refreshes every five seconds and identifies failed refreshes as potentially stale.
 - Network retries keep the original request ID; an already saved scan is not saved twice. An ambiguous failed scan blocks new scans until retried.
 - Both stations serialize updates to the same teacher: SQLite uses `BEGIN IMMEDIATE`; PostgreSQL locks the teacher row.
-- Office corrections require a reason and enter the audit history. No automatic midnight checkout: overnight presence stays recorded until corrected or scanned out.
+- Office corrections require a reason and enter the audit history. No automatic midnight checkout: overnight presence stays recorded until corrected or scanned out; the overview's **Needs attention** list flags it the next day with a one-click, reviewed Record OUT.
+- **Needs attention** also lists today's cover gaps, staff planned out but scanned IN, double-booked substitutes, upcoming gaps, and staff with no arrival today. Every fix opens a review dialog; nothing is changed automatically.
+- Corrections, badge replacement, and deactivation use review dialogs. A correction that loses its response retries with the same request ID.
 - Deactivation requires an OUT state and disables the badge. Historical snapshots include teachers registered at that time, even if now inactive; current names and teacher IDs are used.
 - History displays the latest 200 events; CSV exports all history with UTC timestamps and spreadsheet formula protection.
 - Presence means **recorded status**, not guaranteed physical presence. No-scan staff have a separate Not recorded status; a missed departure can leave someone inside.
@@ -87,7 +89,9 @@ uv run --extra dev --extra demo pytest -q
 # to run the same API cases against both SQLite and PostgreSQL.
 node --check app/static/app.js
 node --check app/static/coverage.js
-node --test tests/test_coverage_ui.cjs
+node --check app/static/dialogs.js
+node --check app/static/attention.js
+node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs
 ```
 
 See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.

@@ -6,6 +6,8 @@
 <title>GLHS · Staff presence</title>
 <link rel="stylesheet" href="/static/style.css">
 <script src="/static/coverage.js" defer></script>
+<script src="/static/dialogs.js" defer></script>
+<script src="/static/attention.js" defer></script>
 <script src="/static/app.js" defer>
 </script>
 </head>
@@ -95,12 +97,17 @@
 <small>No scan yet</small>
 </article>
   </div>
-  <article class="panel coverage-summary">
-    <div><h2>Today's planned absences</h2><p id="coverage-summary-text">Loading coverage…</p></div>
-    <button class="secondary" data-page="coverage">Manage cover</button>
+  <article class="panel attention" aria-labelledby="attention-title">
+    <div class="panel-heading">
+      <div><h2 id="attention-title">Needs attention <span id="attention-count" class="count-badge" hidden></span></h2>
+        <p>Today's planned absences: <span id="coverage-summary-text">Loading coverage…</span></p></div>
+      <button class="secondary" data-page="coverage">Manage cover</button>
+    </div>
+    <ul id="attention-list" class="attention-list"><li class="empty">Checking today's records…</li></ul>
+    <button id="attention-more" class="text-button attention-more" hidden>Show all</button>
   </article>
   <div class="dashboard-grid">
-    <article class="panel roster-panel">
+    <article id="roster-panel" class="panel roster-panel">
 <div class="panel-heading">
 <div>
 <h2>Staff status</h2>
@@ -115,6 +122,8 @@
 <button class="filter" data-filter="in">In</button>
 <button class="filter" data-filter="out">Out</button>
 <button class="filter" data-filter="unrecorded">No scan</button>
+<button class="filter" data-filter="planned">Planned out</button>
+<button class="filter" data-filter="not-arrived">No arrival today</button>
 </div>
 </div>
 <div class="table-wrap">
@@ -124,6 +133,7 @@
 <th>STAFF MEMBER</th>
 <th>STATUS</th>
 <th>LAST SCAN</th>
+<th><span class="sr-only">Actions</span></th>
 </tr>
 </thead>
 <tbody id="roster">
@@ -256,9 +266,21 @@
 <div>
 <div class="eyebrow">AUDIT HISTORY</div>
 <h1>Activity</h1>
-<p>Scans, repeats, and office corrections. Most recent 200 shown.</p>
+<p>Scans, repeats, and office corrections. Up to 200 shown; export includes everything.</p>
 </div>
 <button class="secondary export">Export CSV</button>
+</div>
+<div class="activity-tools">
+<input id="activity-search" placeholder="Search name or staff ID" aria-label="Search activity">
+<select id="activity-kind" aria-label="Type of activity">
+<option value="all">All activity</option>
+<option value="scans">Station scans</option>
+<option value="corrections">Office corrections</option>
+<option value="repeats">Repeat scans</option>
+</select>
+<label>Day <input id="activity-day" type="date"></label>
+<button id="activity-clear" class="text-button">Show latest</button>
+<span id="activity-count" role="status"></span>
 </div>
 <div class="panel table-wrap">
 <table>
@@ -322,6 +344,33 @@
     <div class="dialog-actions"><button id="coverage-dialog-close" type="button" class="secondary">Close</button><button id="coverage-save" class="primary">Save absence</button></div>
   </form>
 </dialog>
+<dialog id="correction-dialog" aria-labelledby="correction-title">
+  <form id="correction-form">
+    <div class="eyebrow">OFFICE CORRECTION</div><h2 id="correction-title">Correct recorded status</h2>
+    <div class="person-summary"><strong id="correction-person"></strong><small id="correction-current"></small></div>
+    <fieldset class="scope">
+      <legend>Record this status now</legend>
+      <label class="radio"><input type="radio" name="correction-direction" id="correction-in" value="in"> IN — in the building</label>
+      <label class="radio"><input type="radio" name="correction-direction" id="correction-out" value="out"> OUT — has left the building</label>
+    </fieldset>
+    <label>Reason <input id="correction-reason" maxlength="240" autocomplete="off" placeholder="Required, at least 3 characters"></label>
+    <div id="correction-picks" class="chips" role="group" aria-label="Common reasons">
+      <button type="button" class="chip" data-reason="Missed arrival scan">Missed arrival scan</button><button type="button" class="chip" data-reason="Missed departure scan">Missed departure scan</button><button type="button" class="chip" data-reason="Forgot badge">Forgot badge</button><button type="button" class="chip" data-reason="Scanner unavailable">Scanner unavailable</button>
+    </div>
+    <p id="correction-summary" class="preview"></p>
+    <p id="correction-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button id="correction-close" type="button" class="secondary">Close</button><button id="correction-save" class="primary">Record correction</button></div>
+  </form>
+</dialog>
+<dialog id="confirm-dialog" aria-labelledby="confirm-title">
+  <form id="confirm-form">
+    <div id="confirm-eyebrow" class="eyebrow">PLEASE CONFIRM</div><h2 id="confirm-title"></h2>
+    <p id="confirm-body"></p>
+    <p id="confirm-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button id="confirm-cancel" type="button" class="secondary">Keep as is</button><button id="confirm-ok" class="primary">Confirm</button></div>
+  </form>
+</dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <footer>Green Level High School · Local pilot</footer>
 </main>
 </body>

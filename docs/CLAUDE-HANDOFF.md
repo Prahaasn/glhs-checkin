@@ -101,3 +101,21 @@ Reusable substitute profiles, partial days/ranges, class periods, substitute
 badges/attendance, and notifications need product decisions. Explain choices to
 Prahaas before expanding behavior or access. The existing source is the starting
 point; no framework rewrite or real-data import is needed to review the workflow.
+
+## Update — October 7, 2026 (Claude)
+
+Two stacked draft PRs continue the workflow work; verify their live state first.
+
+| Work | PR | Branch | Base |
+| --- | --- | --- | --- |
+| Multi-day absences | [#6](https://github.com/Prahaasn/glhs-checkin/pull/6) | codex/multi-day-absences | main |
+| Needs attention queue and review dialogs | [#7](https://github.com/Prahaasn/glhs-checkin/pull/7) | codex/daily-attention | codex/multi-day-absences |
+
+Merge #6 first, then retarget #7 to main and rerun its checks. #6 adds a
+PostgreSQL migration (docs/migrations/2026-10-08-absence-series.sql); #7 adds
+no schema change. Items 3 and 5 of docs/PLATFORM-UX-PLAN.md are now covered.
+
+Still open: guided setup and batch badge printing (plan item 4), a school
+holiday calendar for multi-day plans, bulk Record OUT for many stale IN staff,
+an expected-arrival time for the no-arrival list, and the earlier product
+decisions on a substitute directory, partial days, and notifications.

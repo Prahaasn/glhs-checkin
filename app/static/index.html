@@ -213,27 +213,39 @@
 <section id="coverage" class="page" hidden>
   <div class="page-title">
     <div><div class="eyebrow">DAILY STAFF COVERAGE</div><h1>Absences & cover</h1>
-      <p>Plan who's out and who will cover. Recorded scan status is shown separately.</p></div>
+      <p>Plan who's out, for how many school days, and who will cover. Recorded scan status is shown separately.</p></div>
     <button id="coverage-add" class="primary">Plan absence</button>
   </div>
   <div class="coverage-toolbar">
-    <label>School date <input id="coverage-day" type="date" required></label>
-    <label class="checkbox-label"><input id="coverage-cancelled" type="checkbox"> Show cancelled</label>
+    <div class="segmented" role="group" aria-label="Coverage view">
+      <button id="coverage-view-day" class="segment selected" aria-pressed="true">Day</button>
+      <button id="coverage-view-upcoming" class="segment" aria-pressed="false">Next 2 weeks</button>
+    </div>
+    <div class="date-stepper">
+      <button id="coverage-prev" class="secondary icon-button" aria-label="Previous school day">‹</button>
+      <label><span id="coverage-day-label">School date</span> <input id="coverage-day" type="date" required></label>
+      <button id="coverage-next" class="secondary icon-button" aria-label="Next school day">›</button>
+      <button id="coverage-today" class="text-button">Today</button>
+    </div>
+    <label id="coverage-cancelled-label" class="checkbox-label"><input id="coverage-cancelled" type="checkbox"> Show cancelled</label>
     <span id="coverage-sync">Waiting for server</span>
   </div>
   <p id="coverage-message" role="status" aria-live="polite"></p>
   <div class="stats">
-    <article class="stat"><div>PLANNED ABSENCES</div><strong id="coverage-planned">—</strong><small>For the selected school date</small></article>
+    <article class="stat"><div>PLANNED ABSENCES</div><strong id="coverage-planned">—</strong><small id="coverage-planned-note">For the selected school date</small></article>
     <article class="stat out-stat"><div>SUBSTITUTE ASSIGNED</div><strong id="coverage-covered">—</strong><small>Coverage names recorded</small></article>
     <article class="stat unknown-stat"><div>NEEDS COVER</div><strong id="coverage-unassigned">—</strong><small>Substitute not assigned yet</small></article>
   </div>
-  <div class="panel table-wrap">
+  <div id="coverage-day-panel" class="panel table-wrap">
     <table><thead><tr><th>STAFF MEMBER</th><th>SUBSTITUTE</th><th>RECORDED NOW</th><th>LAST UPDATED</th><th>ACTIONS</th></tr></thead>
       <tbody id="coverage-rows"><tr><td colspan="5" class="empty">Loading planned absences…</td></tr></tbody>
     </table>
   </div>
-  <p class="coverage-scroll-hint">Scroll across the table to see coverage actions.</p>
-  <p class="safety-note">Dates follow the school's Eastern time zone. A substitute assignment does not record the substitute's arrival.</p>
+  <section id="coverage-upcoming" class="panel upcoming" hidden aria-label="Planned absences in the next two weeks">
+    <div id="coverage-upcoming-list"></div>
+  </section>
+  <p id="coverage-scroll-hint" class="coverage-scroll-hint">Scroll across the table to see coverage actions.</p>
+  <p class="safety-note">Dates follow the school's Eastern time zone. Multi-day plans skip Saturdays and Sundays; cancel any other day off individually. A substitute assignment does not record the substitute's arrival.</p>
   <section id="coverage-audit" class="panel coverage-audit" hidden>
     <div class="panel-heading"><h2 id="coverage-audit-title">Coverage changes</h2><button id="coverage-audit-close" class="text-button">Close history</button></div>
     <p>Latest 50 changes, most recent first.</p><ul id="coverage-audit-list"></ul>
@@ -290,8 +302,22 @@
     <div class="eyebrow">PLANNED COVERAGE</div><h2 id="coverage-dialog-title">Plan an absence</h2>
     <p id="coverage-dialog-description">Select the staff member and school date. You can assign cover later.</p>
     <label>Staff member <select id="coverage-teacher" required></select></label>
-    <label>Absence date <input id="coverage-form-day" type="date" required></label>
-    <label>Substitute name <input id="coverage-substitute" maxlength="120" placeholder="Leave blank if cover is not assigned" autocomplete="off"></label>
+    <div class="form-row">
+      <label><span id="coverage-form-day-label">First day out</span> <input id="coverage-form-day" type="date" required></label>
+      <label id="coverage-days-field">School days out <input id="coverage-days" type="number" min="1" max="90" step="1" value="1" inputmode="numeric" required></label>
+    </div>
+    <div id="coverage-days-picks" class="chips" role="group" aria-label="Common lengths">
+      <button type="button" class="chip" data-days="1">1 day</button><button type="button" class="chip" data-days="2">2 days</button><button type="button" class="chip" data-days="3">3 days</button><button type="button" class="chip" data-days="5">1 week</button><button type="button" class="chip" data-days="10">2 weeks</button>
+    </div>
+    <p id="coverage-preview" class="preview" aria-live="polite"></p>
+    <label>Substitute name <input id="coverage-substitute" maxlength="120" list="substitute-options" placeholder="Leave blank if cover is not assigned" autocomplete="off"></label>
+    <datalist id="substitute-options"></datalist>
+    <fieldset id="coverage-scope" class="scope" hidden>
+      <legend>Apply this change to</legend>
+      <label class="radio"><input type="radio" name="coverage-scope" id="coverage-scope-day" value="day"> <span id="coverage-scope-day-text">Only this day</span></label>
+      <label class="radio"><input type="radio" name="coverage-scope" id="coverage-scope-following" value="following"> <span id="coverage-scope-following-text">This day and the later days</span></label>
+    </fieldset>
+    <p id="coverage-conflict" class="form-warning" role="status"></p>
     <p id="coverage-form-error" class="form-error" role="alert"></p>
     <div class="dialog-actions"><button id="coverage-dialog-close" type="button" class="secondary">Close</button><button id="coverage-save" class="primary">Save absence</button></div>
   </form>

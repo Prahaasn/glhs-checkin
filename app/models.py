@@ -68,6 +68,8 @@ class TeacherAbsence(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[int] = mapped_column(Integer)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("office_users.id"), nullable=True)
+    # Days planned together share a series; each day keeps its own cover, version, and history.
+    series_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class AbsenceChange(Base):

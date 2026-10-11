@@ -16,6 +16,8 @@ patterns before introducing another framework.
 - app/absences.py owns office-only planned absences and substitute coverage,
   including multi-day plans that share a series ID.
 - app/attention.py owns the read-only overview attention queue.
+- app/badges.py owns badge tokens, printable QR/Code 128 patterns, and batch issuance.
+- app/readiness.py owns the read-only setup checklist.
 - app/models.py owns the persisted state and audit tables.
 - app/static/ owns the office and station screens.
 - app/local_demo.py creates isolated fictional rehearsals and printable badges.

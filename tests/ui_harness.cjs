@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const DAY = '2026-10-07';
-const SCRIPTS = ['coverage.js', 'dialogs.js', 'attention.js', 'app.js'];  // index.html order
+const SCRIPTS = ['coverage.js', 'dialogs.js', 'attention.js', 'setup.js', 'app.js'];  // index.html order
 const staff = [{id:1, name:'Alex Morgan', teacher_id:'DEMO-001', active:true,
   presence:'unrecorded', inside:null, last_seen:null}];
 const entry = {id:1, teacher_pk:1, teacher_id:'DEMO-001', name:'Alex Morgan',
@@ -14,6 +14,8 @@ const coverage = {day:DAY, today:DAY, entries:[entry], planned:1, covered:0, una
 const range = {start:DAY, end:'2026-10-20', today:DAY, planned:0, covered:0, unassigned:0, days:[]};
 const attention = {today:DAY, day_start:0, items:[], not_arrived:[], planned_today:[],
   coverage:{planned:0, covered:0, unassigned:0}};
+const setup = {steps:[], remaining:0, staff:{active:1, inactive:0, demo:true}, badges:{missing:[], issued:1},
+  office_users:1, stations:[], https:false, lan:false};
 const response = (data, status=200) => ({ok:status<400, status, json:async()=>data});
 const deferred = () => {
   let resolve;
@@ -23,7 +25,7 @@ const deferred = () => {
 const flush = () => new Promise(done => setImmediate(done));
 
 function boot(routes = {}) {
-  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = new Map();
+  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = new Map(), bodyClasses = new Set();
   let timerId = 0;
   const element = id => {
     if (!elements.has(id)) {
@@ -40,7 +42,8 @@ function boot(routes = {}) {
   const context = vm.createContext({
     document:{getElementById:element, querySelector:()=>element('nav'),
       querySelectorAll:()=>[], addEventListener:(event, handler)=>{(listeners[event] ||= []).push(handler);},
-      body:{classList:{remove(){},toggle(){}}}},
+      body:{classList:{remove(name){bodyClasses.delete(name);}, contains:name=>bodyClasses.has(name),
+        toggle(name, force){if(force ?? !bodyClasses.has(name)) bodyClasses.add(name); else bodyClasses.delete(name);}}}},
     URLSearchParams, URL, Date, crypto:{randomUUID:()=>'00000000-0000-4000-8000-' + String(sent.length).padStart(12, '0')},
     // Timers are held until a test runs them, so delayed UI resets can be checked deterministically.
     setInterval(){}, setTimeout(handler){timers.set(++timerId, handler); return timerId;}, clearTimeout(id){timers.delete(id);},
@@ -59,6 +62,7 @@ function boot(routes = {}) {
       if (route === '/absences/range') return response(range);
       if (route === '/substitutes') return response([]);
       if (route === '/attention') return response(attention);
+      if (route === '/setup') return response(setup);
       throw new Error('Unexpected route: ' + route);
     }
   });
@@ -72,7 +76,7 @@ function boot(routes = {}) {
   vm.runInContext("role='admin';connected=true;page='coverage';directoryStaff=" + JSON.stringify(staff), context);
   element('coverage-day').value = DAY;
   const runTimers = () => { const due = [...timers.values()]; timers.clear(); due.forEach(handler => handler()); };
-  return {context, element, requests, sent, runTimers, read:code=>vm.runInContext(code,context)};
+  return {context, element, requests, sent, runTimers, bodyClasses, read:code=>vm.runInContext(code,context)};
 }
 
-module.exports = {DAY, staff, entry, coverage, range, attention, response, deferred, flush, boot};
+module.exports = {DAY, staff, entry, coverage, range, attention, setup, response, deferred, flush, boot};

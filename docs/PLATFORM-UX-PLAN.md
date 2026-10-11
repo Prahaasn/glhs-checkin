@@ -10,11 +10,12 @@ One FastAPI server and SQLAlchemy database own staff, badges, sessions, and scan
 history. Office users can manage staff and corrections; station users can scan
 but cannot read the office roster. Browser screens share the existing API.
 
-- Setup requires terminal commands and copied enrollment keys.
+- Accounts and station keys are still created by terminal commands on the server;
+  the Setup checklist shows what is missing and the exact command for each step.
 - Overview shows recorded presence, a Needs attention queue, and today's
   coverage; Absences & cover plans one or more school days with substitutes.
-- Staff & badges supports one person at a time; replacement immediately revokes
-  the old token, so printing is an important step.
+- Staff & badges issues one badge or a batch onto a printable sheet; any new badge
+  immediately revokes the old token, so printing is an important step.
 - Office corrections, badge replacement, and deactivation use review dialogs.
 - Activity can be searched, filtered by type, and narrowed to one day.
 - Offline/stale states exist, but recovery instructions and readiness need a
@@ -47,8 +48,12 @@ substitute arrived or an automatic badge/account.
 3. **Exception handling (implemented):** review dialogs show the staff member,
    recorded status, explicit IN/OUT, reason, and final action; corrections retry
    with the same request ID like scans.
-4. **Setup and badge workflow:** guided readiness and printing/replacement;
-   evaluate batch issuance without retaining real badge tokens unnecessarily.
+4. **Setup and badge workflow (implemented):** a read-only Setup checklist covers
+   logins, roster, badges on record, station sign-ins, scans today, and network;
+   batch printing issues many badges in one all-or-nothing transaction and draws
+   them on a sheet. Codes are returned once and never stored, so an unprinted
+   sheet is re-issued rather than recovered. Staff from before this version show
+   no badge on record until the office issues one.
 5. **Overview and activity (implemented):** the Needs attention queue lists cover
    gaps, planned-out staff recorded IN, staff still IN from an earlier day,
    double-booked substitutes, upcoming gaps, and staff with no arrival today, each

@@ -32,6 +32,9 @@ def test_demo_starts_unknown_and_issued_cards_work_without_touching_school_data(
         assert client.post("/api/office-session", json={"username": "demo", "password": password}).status_code == 200
         roster = client.get("/api/teachers").json()
         assert len(roster) == 8 and all(row["presence"] == "unrecorded" for row in roster)
+        # The printed demo cards count as issued badges on the setup checklist.
+        assert all(row["badge_issued_at"] for row in roster)
+        assert client.get("/api/setup").json()["badges"] == {"missing": [], "issued": 8}
         assert client.get("/api/events").json() == []
         for badge in badges:
             response = client.post("/api/scans", headers={"X-Station-Key": config["STATION_1_KEY"]},

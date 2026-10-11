@@ -8,6 +8,7 @@
 <script src="/static/coverage.js" defer></script>
 <script src="/static/dialogs.js" defer></script>
 <script src="/static/attention.js" defer></script>
+<script src="/static/setup.js" defer></script>
 <script src="/static/app.js" defer>
 </script>
 </head>
@@ -23,6 +24,7 @@
 <button class="nav" data-page="teachers">Staff & badges</button>
 <button class="nav" data-page="coverage">Absences & cover</button>
 <button class="nav" data-page="history">Activity</button>
+<button class="nav" data-page="setup">Setup <span id="setup-count" class="count-badge" hidden></span></button>
 <button class="nav" data-page="kiosk">Scanner station</button>
 </nav>
   <div class="sidebar-bottom">
@@ -172,9 +174,25 @@
 <div>
 <div class="eyebrow">OFFICE SETUP</div>
 <h1>Staff & badges</h1>
-<p>Add a staff member and print their private QR badge.</p>
+<p>Add staff, print badges in a batch, or replace a lost badge.</p>
+<p id="badge-summary" class="badge-summary"></p>
+</div>
+<button id="print-open" class="primary">Print badges</button>
+</div>
+<section id="badge-sheet-panel" class="panel badge-sheet-panel" hidden aria-labelledby="badge-sheet-title">
+<div class="panel-heading">
+<div>
+<h2 id="badge-sheet-title">Badge sheet</h2>
+<p id="badge-sheet-note"></p>
+</div>
+<div class="sheet-actions">
+<button id="badge-sheet-clear" class="secondary">Clear sheet</button>
+<button id="print" class="primary">Print sheet</button>
 </div>
 </div>
+<p class="form-warning">These codes are shown once and are not saved anywhere. Print now at Actual size / 100%. If you clear the sheet or sign out before printing, issue those badges again.</p>
+<div id="badge-preview"></div>
+</section>
 <div class="panel">
 <form id="teacher-form" class="inline-form">
 <label>Full name<input id="teacher-name" required maxlength="120" placeholder="e.g. Alex Morgan">
@@ -185,17 +203,6 @@
 </form>
 <p id="teacher-message" role="status">
 </p>
-<div id="badge" hidden>
-<div id="print-badge">
-<p>GLHS · STAFF BADGE</p>
-<h2 id="badge-name">
-</h2>
-<img id="badge-img" alt="Staff QR badge">
-<small>Scan at the arrival or departure station</small>
-</div>
-<button id="print" class="secondary">Print badge</button>
-<p>Print or save now. The badge code is never shown again.</p>
-</div>
 <div class="filters">
 <input id="directory-search" placeholder="Find a staff member" aria-label="Search staff directory">
 </div>
@@ -298,6 +305,15 @@
 </table>
 </div>
 </section>
+<section id="setup" class="page" hidden>
+  <div class="page-title">
+    <div><div class="eyebrow">PREPARE THE FRONT OFFICE</div><h1>Setup checklist</h1>
+      <p>Work from top to bottom before the first school day, then check here each morning. Nothing here changes records until you confirm an action.</p></div>
+    <span id="setup-sync" class="setup-sync">Waiting for server</span>
+  </div>
+  <ol id="setup-steps" class="setup-steps"><li class="empty">Checking setup…</li></ol>
+  <p class="safety-note">Office logins and station keys are created on the server by an administrator. This page never shows passwords or keys.</p>
+</section>
 <section id="kiosk" class="page" hidden>
 <div class="station-top">
 <span class="eyebrow">SCANNER STATION</span>
@@ -370,8 +386,23 @@
     <div class="dialog-actions"><button id="confirm-cancel" type="button" class="secondary">Keep as is</button><button id="confirm-ok" class="primary">Confirm</button></div>
   </form>
 </dialog>
+<dialog id="print-dialog" aria-labelledby="print-title">
+  <form id="print-form">
+    <div class="eyebrow">BATCH BADGES</div><h2 id="print-title">Print staff badges</h2>
+    <p>Choose who needs a printed badge. Each new badge replaces that person's previous one.</p>
+    <div id="print-picks" class="chips" role="group" aria-label="Quick selections">
+      <button type="button" class="chip" data-pick="missing">No badge on record</button><button type="button" class="chip" data-pick="all">All active staff</button><button type="button" class="chip" data-pick="none">Clear selection</button>
+    </div>
+    <input id="print-search" placeholder="Find a staff member" aria-label="Find a staff member" autocomplete="off">
+    <ul id="print-list" class="print-list"></ul>
+    <p id="print-summary" class="preview"></p>
+    <p id="print-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button id="print-close" type="button" class="secondary">Close</button><button id="print-issue" class="primary">Issue badges</button></div>
+  </form>
+</dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <footer>Green Level High School · Local pilot</footer>
 </main>
+<div id="print-root" class="print-root"></div>
 </body>
 </html>

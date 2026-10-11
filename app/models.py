@@ -19,6 +19,8 @@ class Teacher(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     inside: Mapped[bool] = mapped_column(Boolean, default=False)
     last_seen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # When the office last issued a usable badge. Imported staff start with none on record.
+    badge_issued_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ScanEvent(Base):

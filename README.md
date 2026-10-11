@@ -41,7 +41,22 @@ Open `.env` **locally** to configure each scanner computer with its own `STATION
 
 If someone leaves the office team, run `uv run --env-file .env python -m app.setup disable-user --username NAME`. To rotate a password, use `reset-password --username NAME` in place of `disable-user`. Both actions revoke that account's existing sessions.
 
-Teachers & badges → enter name and teacher ID → Add teacher → print the QR badge. The QR contains a random token, not the teacher's name/ID. Only its SHA-256 hash is saved. Replacing a badge revokes the old one; print the replacement immediately.
+**Setup** → a checklist of office logins, the staff roster, badges, scanner-station
+sign-ins, today's scans at each station, and how browsers reach the server. Each
+step says what is missing and offers the next action or the exact server command.
+It is read-only and never shows keys or passwords. A brand-new installation with
+no staff opens here after sign-in.
+
+**Staff & badges** → add one person, or **Print badges** to issue many at once:
+choose staff without a badge on record (the default), anyone else, or everyone,
+review how many working badges will be replaced, then issue. New badges appear on
+a sheet of cards, four per letter page, each with a Code 128 barcode and a QR code
+of the same random token (not the person's name or ID). Print at Actual size /
+100%. Only the token's SHA-256 hash and the issue time are saved; the codes are
+shown once and are never stored by the server or the browser, so clearing the
+sheet or signing out before printing means issuing those badges again. A new
+badge revokes the person's previous one. Imported staff have no usable badge until
+one is issued.
 
 **Absences & cover** → Plan absence → choose an active staff member, the first
 day out, and how many school days (weekends are skipped), and optionally enter
@@ -91,7 +106,8 @@ node --check app/static/app.js
 node --check app/static/coverage.js
 node --check app/static/dialogs.js
 node --check app/static/attention.js
-node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs
+node --check app/static/setup.js
+node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs tests/test_setup_ui.cjs
 ```
 
 See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.

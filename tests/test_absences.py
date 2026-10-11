@@ -143,9 +143,11 @@ def test_postgres_migration_preserves_existing_scans_and_supports_coverage(clien
     assert scan(client, person["badge_code"]).status_code == 200
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE school_checkin.absence_changes, school_checkin.teacher_absences"))
+        connection.execute(text("ALTER TABLE school_checkin.teachers DROP COLUMN badge_issued_at"))
     # Reviewed migrations apply in filename order to a database that predates coverage.
     migrations = sorted((Path(__file__).resolve().parents[1] / "docs/migrations").glob("*.sql"))
-    assert [path.name for path in migrations] == ["2026-10-07-absence-coverage.sql", "2026-10-08-absence-series.sql"]
+    assert [path.name for path in migrations] == ["2026-10-07-absence-coverage.sql", "2026-10-08-absence-series.sql",
+                                                  "2026-10-11-badge-issued-at.sql"]
     raw = engine.raw_connection()
     try:
         driver = raw.driver_connection
@@ -164,6 +166,11 @@ def test_postgres_migration_preserves_existing_scans_and_supports_coverage(clien
     assert len(client.get(f"/api/absences/{entry['id']}/changes", headers=ADMIN).json()) == 2
     series = plan(client, person, day=THURSDAY, school_days=3).json()
     assert len(series["series"]["days"]) == 3
+    # Staff from before badge tracking show no badge on record, and their badge keeps working.
+    assert client.get("/api/teachers", headers=ADMIN).json()[0]["badge_issued_at"] is None
+    assert scan(client, person["badge_code"], "out").status_code == 200
+    reissued = client.post("/api/badges/batch", headers=ADMIN, json={"teacher_pks": [person["id"]]}).json()
+    assert scan(client, reissued["issued"][0]["badge_code"]).status_code == 200
 
 
 def test_restore_waits_for_deactivation_and_rechecks_committed_staff_state(client):

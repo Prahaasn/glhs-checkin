@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 let role = null, connected = false, stationName = null, sessionExpiry = 0;
-let staff = [], events = [], filter = 'all', page = 'dashboard', direction = 'in', busy = false, pending = null, badgeUrl, refreshVersion=0, rosterPage=1, directoryPage=1, directoryStaff=[];
+let staff = [], events = [], filter = 'all', page = 'dashboard', direction = 'in', busy = false, pending = null, refreshVersion=0, rosterPage=1, directoryPage=1, directoryStaff=[];
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time = epoch => {if(!epoch)return 'No scans yet';const seen=new Date(epoch*1000);return seen.toDateString()===new Date().toDateString()?seen.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):seen.toLocaleString();};
 const dateTime = epoch => new Date(epoch * 1000).toLocaleString();
@@ -17,16 +17,14 @@ async function api(path, options = {}) {
 }
 function clearLocal() {
   refreshVersion++; connected=false; role=null; stationName=null;
-  clearCoverage(); clearAttention(); clearDialogs();
+  clearCoverage(); clearAttention(); clearDialogs(); clearSetup();
   staff=[];events=[];pending=null;filter='all';
   $('activity-day').value='';$('activity-search').value='';$('activity-kind').value='all';
   $('workspace').hidden=true;$('login').hidden=false;$('sidebar').hidden=true;document.querySelector('nav').hidden=false;document.body.classList.remove('station-view');
   $('access-key').value='';$('password').value='';$('scan-code').value='';
   ['roster','directory','event-table','recent'].forEach(id=>$(id).replaceChildren());
-  $('badge').hidden=true;$('badge-img').removeAttribute('src');$('badge-name').textContent='';
   $('scan-feedback').textContent='Waiting for a badge';$('teacher-message').textContent='';
   $('notice').hidden=true;
-  if(badgeUrl)URL.revokeObjectURL(badgeUrl);
 }
 async function lock() {
   clearLocal();
@@ -92,7 +90,7 @@ async function refresh() {
  if(role!=='admin'||!connected)return;
  const version=++refreshVersion;
  try {
-  refreshCoverage();
+  refreshCoverage();refreshSetup();
   if(page==='dashboard')refreshAttention();
   const snapshot=$('as-of').value;
   const path=snapshot?'/presence?at='+Math.floor(new Date(snapshot).getTime()/1000):'/teachers';
@@ -125,7 +123,7 @@ function pager(prefix,current,total){$(prefix+'-page').textContent=total?`${(cur
 function renderDirectory(){
  const query=$('directory-search').value.toLowerCase();const shown=directoryStaff.filter(t=>t.name.toLowerCase().includes(query)||t.teacher_id.toLowerCase().includes(query));
  directoryPage=Math.max(1,Math.min(directoryPage,Math.ceil(shown.length/20)));pager('directory',directoryPage,shown.length);
- $('directory').innerHTML=shown.slice((directoryPage-1)*20,directoryPage*20).map(t=>`<tr><td>${esc(t.name)}<small>${t.presence==='unrecorded'?'Not recorded':t.inside?'Inside':'Outside'} · ${t.active?'Active':'Inactive'}</small></td><td>${esc(t.teacher_id)}</td><td>${t.active?`<button class="text-button directory-action" data-badge="${t.id}">Replace badge</button><button class="text-button directory-action" data-correct="${t.id}" data-inside="${t.inside}">Correct status</button><button class="text-button" data-deactivate="${t.id}">Deactivate</button>`:'Badge disabled'}</td></tr>`).join('');
+ $('directory').innerHTML=shown.slice((directoryPage-1)*20,directoryPage*20).map(t=>`<tr><td>${esc(t.name)}<small>${t.presence==='unrecorded'?'Not recorded':t.inside?'Inside':'Outside'} · ${t.active?(t.badge_issued_at?'Badge issued '+esc(shortDate(t.badge_issued_at)):'No badge on record'):'Inactive'}</small></td><td>${esc(t.teacher_id)}</td><td>${t.active?`<button class="text-button directory-action" data-badge="${t.id}">${t.badge_issued_at?'Replace badge':'Issue badge'}</button><button class="text-button directory-action" data-correct="${t.id}" data-inside="${t.inside}">Correct status</button><button class="text-button" data-deactivate="${t.id}">Deactivate</button>`:'Badge disabled'}</td></tr>`).join('');
 }
 $('search').oninput=()=>{rosterPage=1;renderRoster();};
 $('directory-search').oninput=()=>{directoryPage=1;renderDirectory();};
@@ -136,18 +134,12 @@ $('roster').onclick=e=>{const b=e.target.closest('button[data-roster-correct]');
 $('activity-search').oninput=renderActivity;$('activity-kind').onchange=renderActivity;$('activity-day').onchange=refresh;
 $('activity-clear').onclick=()=>{$('activity-day').value='';$('activity-search').value='';$('activity-kind').value='all';refresh();};
 $('as-of').onchange=refresh; $('live').onclick=()=>{$('as-of').value='';refresh();};
-async function showBadge(data) {
- const response=await api('/badge-image',{method:'POST',body:JSON.stringify({code:data.badge_code,direction:'in',request_id:uuid()})});
- if(badgeUrl) URL.revokeObjectURL(badgeUrl);badgeUrl=URL.createObjectURL(await response.blob());
- $('badge-img').src=badgeUrl;$('badge-name').textContent=data.name;$('badge').hidden=false;
-}
-$('teacher-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const data=await(await api('/teachers',{method:'POST',body:JSON.stringify({name:$('teacher-name').value.trim(),teacher_id:$('teacher-id').value.trim()})})).json();$('teacher-form').reset();$('teacher-message').textContent='Teacher registered. Print the new badge below.';await showBadge(data);await refresh();}catch(error){$('teacher-message').textContent=error.message;}finally{button.disabled=false;}};
-$('print').onclick=()=>window.print();
+$('teacher-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button'),generation=sheetGeneration;button.disabled=true;try{const data=await(await api('/teachers',{method:'POST',body:JSON.stringify({name:$('teacher-name').value.trim(),teacher_id:$('teacher-id').value.trim()})})).json();$('teacher-form').reset();if(!addToBadgeSheet([data],generation))return;$('teacher-message').textContent=`${data.name} was added. Their badge is on the sheet above; print it now.`;$('badge-sheet-panel').scrollIntoView({block:'nearest'});await refresh();}catch(error){$('teacher-message').textContent=error.message;}finally{button.disabled=false;}};
 $('directory').onclick=e=>{const b=e.target.closest('button');if(!b)return;
  const person=directoryStaff.find(t=>t.id===Number(b.dataset.badge||b.dataset.correct||b.dataset.deactivate));if(!person)return;
  if(b.dataset.correct)openCorrection(person);
- if(b.dataset.badge)confirmAction({title:`Replace ${person.name}'s badge?`,body:'Their current badge stops working immediately. Print the new badge before they leave the office.',confirm:'Replace badge',danger:true,
-   run:async()=>{await showBadge(await(await api('/teachers/'+person.id+'/badge',{method:'POST'})).json());$('teacher-message').textContent=`New badge ready for ${person.name}. Print it now; it is not shown again.`;$('badge').scrollIntoView({block:'nearest'});refresh();}});
+ if(b.dataset.badge)confirmAction({...(person.badge_issued_at?{title:`Replace ${person.name}'s badge?`,body:'Their current badge stops working immediately. Print the new badge before they leave the office.',confirm:'Replace badge',danger:true}:{title:`Issue a badge for ${person.name}?`,body:'The new badge goes on the badge sheet to print now. If they still carry an older badge, it stops working.',confirm:'Issue badge'}),
+   run:async()=>{const generation=sheetGeneration;if(!addToBadgeSheet([await(await api('/teachers/'+person.id+'/badge',{method:'POST'})).json()],generation))return;$('teacher-message').textContent=`New badge ready for ${person.name}. Print it now; it is not shown again.`;$('badge-sheet-panel').scrollIntoView({block:'nearest'});refresh();}});
  if(b.dataset.deactivate)confirmAction({title:`Deactivate ${person.name}?`,body:'Their badge stops working and they leave the active roster. Scan history and planned coverage history are kept. They must be recorded OUT first.',confirm:'Deactivate',danger:true,
    run:async()=>{await api('/teachers/'+person.id,{method:'PATCH'});showToast(`${person.name} was deactivated.`);refresh();}});
 };
@@ -159,7 +151,7 @@ $('kiosk').addEventListener('click',e=>{if(role==='station' && !pending && !e.ta
 // Unknown badges and validation errors are definitive failures, not ambiguous network failures.
 // The retry button preserves the request ID so a lost response cannot record twice.
 setInterval(()=>{$('clock').textContent=new Date().toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})+' · '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});},1000);
-setInterval(()=>{if(page==='dashboard'||page==='history'||page==='coverage')refresh();},5000);
+setInterval(()=>{if(page==='dashboard'||page==='history'||page==='coverage'||page==='setup')refresh();},5000);
 // Remove legacy key storage from earlier pilot versions. Browser sessions use HttpOnly cookies.
 sessionStorage.removeItem('key');sessionStorage.removeItem('role');
 api('/session').then(r=>r.json()).then(connect).catch(()=>clearLocal());

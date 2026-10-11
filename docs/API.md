@@ -12,10 +12,12 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 | POST | `/scans` | Station | Record explicit IN/OUT |
 | GET | `/teachers` | Office | Current roster and recorded presence |
 | POST | `/teachers` | Office | Register teacher and return a new badge token once |
-| POST | `/teachers/{id}/badge` | Office | Replace badge; revoke old token |
+| POST | `/teachers/{id}/badge` | Office | Issue a new badge once; revoke the old token |
+| POST | `/badges/batch` | Office | Issue badges for up to 200 staff in one transaction |
+| GET | `/setup` | Office | Read-only setup checklist |
 | PATCH | `/teachers/{id}` | Office | Deactivate a checked-out teacher |
 | POST | `/teachers/{id}/correction` | Office | Correct status with an audit reason |
-| POST | `/badge-image` | Office | Generate a PNG QR image |
+| POST | `/badge-image` | Office | Generate a PNG QR image (kept for API clients) |
 | GET | `/presence?at={epoch}` | Office | Recorded presence at a past Unix timestamp |
 | GET | `/events` | Office | Latest 200 audit events |
 | GET | `/export` | Office | Full history as CSV, timestamps in UTC |
@@ -37,7 +39,21 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 {"teacher_id":"T-001","name":"Example Teacher"}
 ```
 
-Response: HTTP 201 with `id`, `teacher_id`, `name`, `active`, `inside`, `last_seen`, `presence`, and `badge_code`. The server stores only the badge code's SHA-256 hash. Print the returned code immediately, or replace the badge later. Duplicate teacher IDs return 409.
+Response: HTTP 201 with `id`, `teacher_id`, `name`, `active`, `inside`, `last_seen`, `presence`, `badge_issued_at`, `badge_code`, `qr`, and `code128`. The server stores only the badge code's SHA-256 hash and the issue time. Print the returned code immediately, or issue a new badge later. Duplicate teacher IDs return 409.
+
+`qr` is the QR symbol (medium error correction, 4-module quiet zone) as rows of `1` (dark) and `0` (light). `code128` is the Code 128 subset B symbol, start through stop, as bar (`1`) and space (`0`) modules without quiet zones; leave at least 10 light modules on each side when drawing it. Both encode `badge_code` exactly. `POST /teachers/{id}/badge` returns `id`, `name`, `teacher_id`, `badge_code`, `qr`, and `code128` for active staff.
+
+`badge_issued_at` (Unix seconds, or null) records when the office last issued a usable badge. Imported staff, and staff created before badge dates were recorded, are null: "no badge on record". A badge printed before badge dates were recorded keeps working until a new one is issued.
+
+## Issue badges in a batch
+
+`POST /badges/batch` accepts `teacher_pks` (1–200 distinct database IDs) and `replace_existing` (default false). It locks those staff and either issues every badge or none. It returns 409, issuing nothing, if anyone selected is missing or inactive, or if anyone already has a badge on record and `replace_existing` is false; the office reviews the replacement and sends `true`. A success returns `issued` (sorted by name, each with `id`, `name`, `teacher_id`, `badge_code`, `qr`, and `code128`), `replaced` (how many working badges were revoked), and `issued_at`.
+
+Codes are returned only in this response and are not stored. If the response is lost, the new badges exist but their codes cannot be recovered: issue those badges again, which replaces them.
+
+## Setup checklist
+
+`GET /setup` is read-only. `steps` lists `office`, `roster`, `badges`, `stations`, `test_scan`, and `network`, each with `status` (`done`, `todo`, `warning`, or `info`), `title`, `detail`, display `lines`, `help` entries (`text` and an optional server `command`), and `actions` (`page` opens a screen, `print_missing` and `print` open batch printing). `remaining` counts `todo` and `warning` steps. The response also includes `staff` counts, `badges.missing` (active staff IDs with no badge on record), active `office_users`, each station's `signed_in_until` session expiry, `last_scan_at`, and `scanned_today` (Eastern school day), and whether the request used HTTPS or the server accepts non-loopback hosts (`lan`). It never returns keys, passwords, or badge codes.
 
 ## Scan a badge
 
@@ -63,7 +79,7 @@ A successful scanner beep alone does not prove server acceptance; require the ap
 
 ## QR rendering and corrections
 
-`POST /badge-image` currently accepts the scan-shaped payload above and returns `image/png`; the direction and UUID are validated but no scan is recorded. The registration screen handles this automatically.
+`POST /badge-image` accepts the scan-shaped payload above and returns `image/png`; the direction and UUID are validated but no scan is recorded. The office screens no longer use it: they draw badges from the patterns returned when a badge is issued, so a code never travels back to the server.
 
 `POST /teachers/{id}/correction` accepts `direction`, a fresh `request_id`, and a `reason` of 3–240 characters. Corrections use the same atomic state/event transaction. Corrections made through named office sessions include that account's display name in the activity log; legacy administrator-key corrections show as `office`.
 

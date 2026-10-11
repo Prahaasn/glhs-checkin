@@ -31,6 +31,12 @@ nullable `series_id` column and index to `teacher_absences`. Apply migrations in
 filename order. Existing single-day entries keep a null series and work as before.
 CI applies both migrations in order to a database with existing attendance.
 
+The setup checklist and batch badges then require the reviewed
+[badge-date migration](migrations/2026-10-11-badge-issued-at.sql), which adds one
+nullable `badge_issued_at` column to `teachers`. Existing staff show "no badge on
+record" until the office issues one; the badge they already carry keeps working
+until then. CI applies all three migrations in order.
+
 Fresh provisioning through init-postgres creates all model tables. SQLite
 locally creates missing tables on startup and adds the nullable `series_id`
 column to an earlier local file. PostgreSQL never upgrades columns automatically.

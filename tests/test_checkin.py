@@ -389,6 +389,10 @@ def test_saved_scan_retry_survives_a_badge_change_or_deactivation(client):
     scan(client,new['badge_code'],'out',TWO)
     assert client.patch(f"/api/teachers/{t['id']}",headers=ADMIN).status_code==200
     assert scan(client,t['badge_code'],request_id=request_id).json()==first
+    # Someone else's deactivated badge is a different person, not a retry of this scan.
+    other=teacher(client,'Jordan Rivera','002')
+    assert client.patch(f"/api/teachers/{other['id']}",headers=ADMIN).status_code==200
+    assert scan(client,other['badge_code'],request_id=request_id).status_code==409
     assert len(client.get('/api/events',headers=ADMIN).json())==2
 
 
@@ -400,6 +404,15 @@ def test_saved_scan_retry_is_answered_while_unknown_badges_are_throttled(client)
     assert scan(client,'unknown').status_code==429
     assert scan(client,t['badge_code'],request_id=request_id).json()==first
     assert scan(client,t['badge_code'],request_id=request_id,headers=TWO).status_code==409
+
+
+def test_a_saved_request_id_cannot_be_reused_to_test_badge_guesses_without_limit(client):
+    t=teacher(client); request_id=str(uuid4())
+    first=scan(client,t['badge_code'],request_id=request_id).json()
+    answers=[scan(client,f'guess-{number}',request_id=request_id) for number in range(31)]
+    assert all(answer.json()==first for answer in answers[:30]) and answers[30].status_code==429
+    assert scan(client,'unknown').status_code==429
+    assert scan(client,t['badge_code'],request_id=request_id).json()==first
 
 
 def test_oversized_numbers_are_rejected_instead_of_failing_the_server(client):

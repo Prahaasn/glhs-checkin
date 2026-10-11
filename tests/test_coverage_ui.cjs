@@ -224,7 +224,11 @@ test('assigning cover starts with one day when later days already have other cov
   assert.equal(ui.element('coverage-scope-day').checked, true);
   assert.equal(ui.element('coverage-scope-following').checked, false);
   assert.match(ui.element('coverage-scope-following-text').textContent, /replaces the cover already set on 1 day \(Sam Ray\)/);
-  const open = {...series, days:series.days.map(item => ({...item, substitute_name:null}))};
+  // Typing the person who already covers the later days means nothing would be replaced.
+  ui.element('coverage-substitute').value = 'sam  ray';
+  ui.element('coverage-substitute').listeners.input();
+  assert.doesNotMatch(ui.element('coverage-scope-following-text').textContent, /replaces/);
+  const open ={...series, days:series.days.map(item => ({...item, substitute_name:null}))};
   ui.context.openCoverage('edit', {...entry, series_id:'s1', series:open});
   assert.equal(ui.element('coverage-scope-following').checked, true);
   assert.doesNotMatch(ui.element('coverage-scope-following-text').textContent, /replaces/);

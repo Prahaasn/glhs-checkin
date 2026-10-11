@@ -289,7 +289,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         previous = session.scalar(select(ScanEvent).where(ScanEvent.request_id == str(request_id)))
         if previous and (teacher is None or not teacher.active):
             # Saved before the badge was replaced or the person deactivated: a retry still gets its result.
-            if (previous.direction, previous.station, previous.reason) != (direction, station, reason):
+            if (teacher is not None and teacher.id != previous.teacher_pk) or \
+                    (previous.direction, previous.station, previous.reason) != (direction, station, reason):
                 raise HTTPException(409, "Request ID already used for another scan.")
             return scan_result(previous, session.get(Teacher, previous.teacher_pk))
         if teacher is None or not teacher.active:
@@ -329,17 +330,24 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
 
     @app.post("/api/scans")
     def scan(payload: ScanInput, station=Depends(auth_station), session: Session = Depends(db)):
-        # A retry of a scan this station already saved is answered even while unknown badges are throttled.
-        if not session.scalar(select(ScanEvent.id).where(ScanEvent.request_id == str(payload.request_id),
-                                                         ScanEvent.station == station)):
+        known = session.scalar(select(Teacher.id).where(Teacher.badge_hash == badge_hash(payload.code), Teacher.active == True))
+        saved = session.scalar(select(ScanEvent.teacher_pk).where(ScanEvent.request_id == str(payload.request_id),
+                                                                  ScanEvent.station == station))
+        # A retry of a scan this station saved is answered even while unknown badges are throttled, as long as
+        # the badge still identifies that person. Any other code counts toward the limit like a guess, so a
+        # saved request ID cannot be reused to test badge codes without limit.
+        if known is None or known != saved:
             badge_limiter.check(station)
         try:
-            return record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
-                          payload.direction, payload.request_id, station)
+            result = record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
+                            payload.direction, payload.request_id, station)
         except HTTPException as error:
             if error.status_code == 404:
                 badge_limiter.failed(station)
             raise
+        if known is None:
+            badge_limiter.failed(station)
+        return result
 
     @app.get("/api/teachers", dependencies=[Depends(auth_admin)])
     def teachers(session: Session = Depends(db)):

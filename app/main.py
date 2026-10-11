@@ -41,8 +41,10 @@ def upgrade_sqlite(engine):
         connection.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_teacher_absences_series_id ON teacher_absences (series_id)")
         if "badge_issued_at" not in columns("teachers"):
-            # Earlier staff have no badge on record; any badge they already carry keeps working.
             connection.exec_driver_sql("ALTER TABLE teachers ADD COLUMN badge_issued_at INTEGER")
+            # Staff added on the office screen or in a demo got a usable badge when created; imported
+            # directory staff (DIR-) did not, so only they start with no badge on record.
+            connection.exec_driver_sql("UPDATE teachers SET badge_issued_at = created_at WHERE teacher_id NOT LIKE 'DIR-%'")
 
 
 def prepare_sqlite(engine):

@@ -56,7 +56,7 @@ test('print missing badges preselects staff without one, then issues and draws a
   assert.equal(ui.element('print-issue').className, 'primary');
   assert.equal(ui.sent.filter(request => request.method === 'POST').length, 0);
   await ui.context.issueBadges();
-  assert.deepEqual(lastWrite(ui).body, {teacher_pks:[1], replace_existing:false});
+  assert.deepEqual(lastWrite(ui).body, {teacher_pks:[1], reviewed_badges:{1:null}});
   assert.equal(ui.element('print-dialog').open, false);
   const sheet = ui.element('badge-preview').innerHTML;
   assert.match(sheet, /Alex Morgan[\s\S]*DEMO-001 · FICTIONAL DEMO/);
@@ -77,20 +77,36 @@ test('choosing someone who has a badge warns before replacing it', async()=>{
   assert.equal(ui.element('print-issue').textContent, 'Replace and issue 2 badges');
   assert.equal(ui.element('print-issue').className, 'primary danger');
   await ui.context.issueBadges();
-  assert.deepEqual(lastWrite(ui).body, {teacher_pks:[1, 2], replace_existing:true});
+  assert.deepEqual(lastWrite(ui).body, {teacher_pks:[1, 2], reviewed_badges:{1:null, 2:1760000000}});
   ui.context.pickPrint('none');
   assert.equal(ui.element('print-issue').disabled, true);
 });
 
 test('a refused batch keeps the dialog open and draws nothing', async()=>{
-  const ui = office({'/badges/batch':()=>response({detail:'Alex Morgan already has a badge. Review the replacement; no badges were issued.'}, 409)});
+  const ui = office({'/badges/batch':()=>response({detail:'Alex Morgan has a different badge on record than this screen showed. Review the list again; no badges were issued.'}, 409)});
   ui.context.openPrintDialog('all');
   await ui.context.issueBadges();
   assert.equal(ui.element('print-dialog').open, true);
-  assert.match(ui.element('print-error').textContent, /^Alex Morgan already has a badge/);
+  assert.match(ui.element('print-error').textContent, /^Alex Morgan has a different badge on record/);
   assert.equal(ui.element('print-issue').disabled, false);
   assert.equal(ui.element('badge-preview').innerHTML, '');
   assert.equal(ui.bodyClasses.has('has-badge-sheet'), false);
+});
+
+test('a stale list sends what it showed, and a refusal redraws the real replacement warning', async()=>{
+  const reissued = people.map(person => person.id === 1 ? {...person, badge_issued_at:1760500000} : person);
+  const ui = office({'/teachers':()=>response(reissued),
+    '/badges/batch':()=>response({detail:'Alex Morgan has a different badge on record than this screen showed. Review the list again; no badges were issued.'}, 409)});
+  ui.context.openPrintDialog('missing');
+  assert.equal(ui.element('print-issue').textContent, 'Issue 1 badge');
+  // Another desk issues Alex's badge; a background refresh updates the list without redrawing the dialog.
+  ui.read('directoryStaff=' + JSON.stringify(reissued));
+  await ui.context.issueBadges();
+  assert.deepEqual(lastWrite(ui).body, {teacher_pks:[1], reviewed_badges:{1:null}});
+  assert.match(ui.element('print-list').innerHTML, /data-print-pick="1" checked>[\s\S]*Badge issued/);
+  assert.equal(ui.element('print-issue').textContent, 'Replace and issue 1 badge');
+  assert.equal(ui.element('print-issue').className, 'primary danger');
+  assert.deepEqual(JSON.parse(ui.read('JSON.stringify(printReview.reviewed_badges)')), {1:1760500000});
 });
 
 test('signing out clears the sheet and a late batch response is never drawn', async()=>{

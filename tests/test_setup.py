@@ -32,9 +32,13 @@ def setup(client):
     return data, {item["key"]: item for item in data["steps"]}
 
 
-def batch(client, people, replace=False):
+def batch(client, people, reviewed=None):
+    """Issue badges as an up-to-date screen would: it shows each person's current badge date."""
+    if reviewed is None:
+        current = {person["id"]: person["badge_issued_at"] for person in client.get("/api/teachers", headers=ADMIN).json()}
+        reviewed = {str(person["id"]): current.get(person["id"]) for person in people}
     return client.post("/api/badges/batch", headers=ADMIN,
-                       json={"teacher_pks": [person["id"] for person in people], "replace_existing": replace})
+                       json={"teacher_pks": [person["id"] for person in people], "reviewed_badges": reviewed})
 
 
 def decode_code128(modules):
@@ -100,21 +104,25 @@ def test_imported_staff_need_badges_and_one_batch_issues_working_codes(client):
     assert "badge_hash" not in str(roster) and "badge_code" not in str(roster)
 
 
-def test_batch_needs_reviewed_replacement_and_never_issues_part_of_a_batch(client):
+def test_batch_only_replaces_the_badges_the_office_reviewed_and_never_issues_part(client):
     carrying = teacher(client, "Alex Morgan", "001")
     waiting, = imported(client, "Sam Patel")
-    refused = batch(client, [carrying, waiting])
-    assert refused.status_code == 409 and "Alex Morgan already has a badge" in refused.json()["detail"]
+    # A screen that still shows "no badge on record" for Alex cannot revoke the badge Alex carries.
+    stale = batch(client, [carrying, waiting], reviewed={})
+    assert stale.status_code == 409 and stale.json()["detail"].startswith("Alex Morgan has a different badge on record")
+    # Nor can a screen showing an older badge date, as when another desk reissued it meanwhile.
+    older = batch(client, [carrying], reviewed={str(carrying["id"]): carrying["badge_issued_at"] - 1})
+    assert older.status_code == 409 and "no badges were issued" in older.json()["detail"]
     assert scan(client, carrying["badge_code"]).status_code == 200
     assert setup(client)[0]["badges"]["missing"] == [waiting["id"]]
-    replaced = batch(client, [carrying, waiting], replace=True).json()
+    replaced = batch(client, [carrying, waiting]).json()
     assert replaced["replaced"] == 1
     assert scan(client, carrying["badge_code"]).status_code == 404
     codes = {badge["name"]: badge["badge_code"] for badge in replaced["issued"]}
     leaving = teacher(client, "Casey Brooks", "002")
     assert client.patch(f"/api/teachers/{leaving['id']}", headers=ADMIN).status_code == 200
     for people in ([waiting, leaving], [waiting, {"id": 99999}]):
-        response = batch(client, people, replace=True)
+        response = batch(client, people)
         assert response.status_code == 409 and "no badges were issued" in response.json()["detail"]
     assert scan(client, codes["Sam Patel"]).status_code == 200
 
@@ -123,7 +131,9 @@ def test_batch_validates_its_selection(client):
     person = teacher(client)
     for payload in ({"teacher_pks": []}, {"teacher_pks": [person["id"], person["id"]]},
                     {"teacher_pks": list(range(1, MAX_BATCH + 2))}, {"teacher_pks": "all"},
-                    {"teacher_pks": [10**30]}, {"teacher_pks": [0]}):
+                    {"teacher_pks": [10**30]}, {"teacher_pks": [0]},
+                    {"teacher_pks": [person["id"]], "reviewed_badges": {"0": None}},
+                    {"teacher_pks": [person["id"]], "reviewed_badges": {str(person["id"]): 10**30}}):
         response = client.post("/api/badges/batch", headers=ADMIN, json=payload)
         assert response.status_code == 422 and "Invalid request" in response.json()["detail"]
 
@@ -132,7 +142,7 @@ def test_station_and_signed_out_browsers_cannot_issue_badges_or_read_setup(clien
     person = teacher(client)
     for headers in (ONE, {}):
         assert client.get("/api/setup", headers=headers).status_code == 401
-        assert client.post("/api/badges/batch", headers=headers, json={"teacher_pks": [person["id"]], "replace_existing": True}).status_code == 401
+        assert client.post("/api/badges/batch", headers=headers, json={"teacher_pks": [person["id"]], "reviewed_badges": {str(person["id"]): person["badge_issued_at"]}}).status_code == 401
     assert scan(client, person["badge_code"]).status_code == 200
 
 
@@ -179,10 +189,13 @@ def test_imports_on_an_older_local_database_add_the_badge_column(tmp_path):
     with engine.begin() as connection:
         connection.exec_driver_sql("ALTER TABLE teachers DROP COLUMN badge_issued_at")
         connection.exec_driver_sql("INSERT INTO teachers (teacher_id, name, badge_hash, created_at, active, inside) "
-                                   "VALUES ('T-1', 'Jordan Rivera', 'hash', 1, 1, 0)")
+                                   "VALUES ('T-1', 'Jordan Rivera', 'hash', 1, 1, 0), ('DIR-5', 'Sam Patel', 'other', 2, 1, 0)")
     # The command-line import runs without the server's startup hook.
     assert import_directory(engine, {"source_url": SOURCE_URL, "expected_total": 1,
                                      "staff": [{"directory_id": "7", "name": "Taylor Chen"}]})["added"] == 1
     with TestClient(app) as upgraded:
         data, _ = setup(upgraded)
-        assert data["staff"]["active"] == 2 and len(data["badges"]["missing"]) == 2
+        # Staff added on the office screen got a badge when created; imported directory staff did not.
+        badges = {person["teacher_id"]: person["badge_issued_at"] for person in upgraded.get("/api/teachers", headers=ADMIN).json()}
+        assert badges == {"T-1": 1, "DIR-5": None, "DIR-7": None}
+        assert data["staff"]["active"] == 3 and len(data["badges"]["missing"]) == 2

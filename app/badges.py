@@ -69,10 +69,15 @@ def badge_card(code):
     return {"qr": qr_rows(code), "code128": code128_modules(code)}
 
 
+SQL_INT_MAX = 2**31 - 1  # IDs and times beyond a 32-bit SQL integer are invalid input, not a database error.
+
+
 class BatchInput(BaseModel):
-    # IDs beyond a 32-bit SQL integer are invalid input rather than a database error.
-    teacher_pks: list[Annotated[int, Field(ge=1, le=2**31 - 1)]] = Field(min_length=1, max_length=MAX_BATCH)
-    replace_existing: bool = False
+    teacher_pks: list[Annotated[int, Field(ge=1, le=SQL_INT_MAX)]] = Field(min_length=1, max_length=MAX_BATCH)
+    # The badge date the office saw for each selected person (missing or null: no badge on record).
+    # Like an absence version, any difference means another desk changed it, so nothing is issued.
+    reviewed_badges: dict[Annotated[int, Field(ge=1, le=SQL_INT_MAX)],
+                          Annotated[int, Field(ge=0, le=SQL_INT_MAX)] | None] = Field(default_factory=dict, max_length=MAX_BATCH)
 
     @field_validator("teacher_pks")
     @classmethod
@@ -98,10 +103,11 @@ def register_badges(app, sqlite, db, auth_admin):
         if any(pk not in found or not found[pk].active for pk in payload.teacher_pks):
             raise HTTPException(409, "Some selected staff are no longer active. Refresh the list; no badges were issued.")
         people = sorted(found.values(), key=lambda person: (person.name.lower(), person.id))
+        changed = [person for person in people if person.badge_issued_at != payload.reviewed_badges.get(person.id)]
+        if changed:
+            raise HTTPException(409, f"{names(changed)} {'has' if len(changed) == 1 else 'have'} a different badge on "
+                                     "record than this screen showed. Review the list again; no badges were issued.")
         existing = [person for person in people if person.badge_issued_at is not None]
-        if existing and not payload.replace_existing:
-            raise HTTPException(409, f"{names(existing)} already {'has' if len(existing) == 1 else 'have'} a badge. "
-                                     "Review the replacement; no badges were issued.")
         now = int(time.time())
         issued = []
         for person in people:

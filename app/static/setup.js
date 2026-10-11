@@ -2,7 +2,7 @@
 // its QR and Code 128 patterns; this screen draws them for printing and never stores them, so
 // clearing the sheet or signing out discards them for good.
 let setupData = null, setupVersion = 0, setupHtml = '', setupOpenedForEmptyRoster = false;
-let printPicked = new Set(), printDialogVersion = 0, badgeSheet = [], sheetGeneration = 0;
+let printPicked = new Set(), printReview = null, printDialogVersion = 0, badgeSheet = [], sheetGeneration = 0;
 const STEP_STATUS = {done:'Ready', todo:'To do', warning:'Check', info:'Note'};
 const count = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
 const shortDate = epoch => new Date(epoch * 1000).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'});
@@ -83,7 +83,7 @@ function openPrintDialog(pick = 'missing') {
 }
 
 function closePrintDialog() {
-  printDialogVersion++; printPicked = new Set();
+  printDialogVersion++; printPicked = new Set(); printReview = null;
   if ($('print-dialog').open) $('print-dialog').close();
 }
 
@@ -110,6 +110,10 @@ function renderPrintList() {
 
 function renderPrintSummary() {
   const {people, replacing} = printSelection();
+  // Issue sends exactly what this summary showed. If another desk changes a badge after this, the server
+  // refuses the whole batch instead of revoking a badge the office never saw.
+  printReview = {teacher_pks: people.map(person => person.id),
+    reviewed_badges: Object.fromEntries(people.map(person => [person.id, person.badge_issued_at || null]))};
   $('print-summary').textContent = !people.length ? 'Select at least one staff member.' :
     count(people.length, 'new badge') + ' will be drawn on a sheet for you to print now.' +
     (replacing.length ? ' ' + count(replacing.length, 'badge') + ' they carry now will stop working immediately.' :
@@ -121,12 +125,11 @@ function renderPrintSummary() {
 }
 
 async function issueBadges() {
-  const {people, replacing} = printSelection(), version = printDialogVersion, generation = sheetGeneration;
-  if (!people.length) { $('print-error').textContent = 'Select at least one staff member. No badges were issued.'; return; }
+  const review = printReview, version = printDialogVersion, generation = sheetGeneration;
+  if (!review?.teacher_pks.length) { $('print-error').textContent = 'Select at least one staff member. No badges were issued.'; return; }
   $('print-issue').disabled = true; $('print-error').textContent = '';
   try {
-    const result = await (await api('/badges/batch', {method:'POST', body:JSON.stringify({
-      teacher_pks: people.map(person => person.id), replace_existing: replacing.length > 0})})).json();
+    const result = await (await api('/badges/batch', {method:'POST', body:JSON.stringify(review)})).json();
     // Codes exist only in this response, so keep them even if the dialog was closed meanwhile.
     if (!addToBadgeSheet(result.issued, generation)) return;
     if (version === printDialogVersion) closePrintDialog();
@@ -138,7 +141,8 @@ async function issueBadges() {
     const definite = error.status && error.status < 500;
     $('print-error').textContent = error.message + (definite ? '' :
       ' The server did not confirm. Close this, check each person\'s badge date on Staff & badges, and issue again if needed.');
-    if (definite) refresh();
+    // Reload the staff list and redraw, so the next click reviews current badges rather than the old view.
+    if (definite) { await refresh(); if (version === printDialogVersion) renderPrintList(); }
   } finally { if (version === printDialogVersion) renderPrintSummary(); }
 }
 

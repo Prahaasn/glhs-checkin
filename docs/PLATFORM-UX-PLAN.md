@@ -52,8 +52,10 @@ substitute arrived or an automatic badge/account.
    logins, roster, badges on record, station sign-ins, scans today, and network;
    batch printing issues many badges in one all-or-nothing transaction and draws
    them on a sheet. Codes are returned once and never stored, so an unprinted
-   sheet is re-issued rather than recovered. Staff from before this version show
-   no badge on record until the office issues one.
+   sheet is re-issued rather than recovered. Imported staff show no badge on
+   record until the office issues one; staff added on the office screen before
+   this version are backfilled as having one. A batch only replaces badges the
+   office reviewed, so a stale screen at another desk issues nothing.
 5. **Overview and activity (implemented):** the Needs attention queue lists cover
    gaps, planned-out staff recorded IN, staff still IN from an earlier day,
    double-booked substitutes, upcoming gaps, and staff with no arrival today, each

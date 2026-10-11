@@ -136,8 +136,9 @@ branch codex/guided-setup (draft PR; verify its live state):
   drawn from patterns the server returns once; codes are never stored.
 - New nullable `teachers.badge_issued_at` column. SQLite adds it automatically,
   including for command-line imports; PostgreSQL needs
-  docs/migrations/2026-10-11-badge-issued-at.sql. Staff from earlier versions
-  show "no badge on record" while their printed badge keeps working.
+  docs/migrations/2026-10-11-badge-issued-at.sql. Upgrades backfill staff added
+  on the office screen; imported (DIR-) staff show "no badge on record". A batch
+  sends the badge dates it showed and is refused if any changed meanwhile.
 
 Still open: a school holiday calendar, bulk Record OUT, expected-arrival times,
 and the product decisions on substitutes, partial days, and notifications. A

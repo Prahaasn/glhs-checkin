@@ -43,11 +43,11 @@ Response: HTTP 201 with `id`, `teacher_id`, `name`, `active`, `inside`, `last_se
 
 `qr` is the QR symbol (medium error correction, 4-module quiet zone) as rows of `1` (dark) and `0` (light). `code128` is the Code 128 subset B symbol, start through stop, as bar (`1`) and space (`0`) modules without quiet zones; leave at least 10 light modules on each side when drawing it. Both encode `badge_code` exactly. `POST /teachers/{id}/badge` returns `id`, `name`, `teacher_id`, `badge_code`, `qr`, and `code128` for active staff.
 
-`badge_issued_at` (Unix seconds, or null) records when the office last issued a usable badge. Imported staff, and staff created before badge dates were recorded, are null: "no badge on record". A badge printed before badge dates were recorded keeps working until a new one is issued.
+`badge_issued_at` (Unix seconds, or null) records when the office last issued a usable badge. Imported directory staff (`DIR-` IDs) are null, "no badge on record", until the office issues one. Upgrading an earlier database fills in staff added on the office screen or in a demo with their creation time, because they received a usable badge then.
 
 ## Issue badges in a batch
 
-`POST /badges/batch` accepts `teacher_pks` (1–200 distinct database IDs) and `replace_existing` (default false). It locks those staff and either issues every badge or none. It returns 409, issuing nothing, if anyone selected is missing or inactive, or if anyone already has a badge on record and `replace_existing` is false; the office reviews the replacement and sends `true`. A success returns `issued` (sorted by name, each with `id`, `name`, `teacher_id`, `badge_code`, `qr`, and `code128`), `replaced` (how many working badges were revoked), and `issued_at`.
+`POST /badges/batch` accepts `teacher_pks` (1–200 distinct database IDs) and `reviewed_badges`, an object mapping each selected ID to the `badge_issued_at` the office reviewed (omitted or null means "no badge on record"). It locks those staff and either issues every badge or none. It returns 409, issuing nothing, if anyone selected is missing or inactive, or if anyone's current `badge_issued_at` differs from what was reviewed. That works like an absence version check: a screen that is out of date, for example because another desk issued a badge meanwhile, cannot revoke a badge the office never saw. A success returns `issued` (sorted by name, each with `id`, `name`, `teacher_id`, `badge_code`, `qr`, and `code128`), `replaced` (how many working badges were revoked), and `issued_at`.
 
 Codes are returned only in this response and are not stored. If the response is lost, the new badges exist but their codes cannot be recovered: issue those badges again, which replaces them.
 

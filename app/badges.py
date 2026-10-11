@@ -6,6 +6,7 @@ QR and Code 128 patterns the office screen draws, and is never kept on the serve
 import hashlib
 import secrets
 import time
+from typing import Annotated
 
 import qrcode
 from fastapi import Depends, HTTPException
@@ -69,7 +70,8 @@ def badge_card(code):
 
 
 class BatchInput(BaseModel):
-    teacher_pks: list[int] = Field(min_length=1, max_length=MAX_BATCH)
+    # IDs beyond a 32-bit SQL integer are invalid input rather than a database error.
+    teacher_pks: list[Annotated[int, Field(ge=1, le=2**31 - 1)]] = Field(min_length=1, max_length=MAX_BATCH)
     replace_existing: bool = False
 
     @field_validator("teacher_pks")

@@ -122,7 +122,8 @@ def test_batch_needs_reviewed_replacement_and_never_issues_part_of_a_batch(clien
 def test_batch_validates_its_selection(client):
     person = teacher(client)
     for payload in ({"teacher_pks": []}, {"teacher_pks": [person["id"], person["id"]]},
-                    {"teacher_pks": list(range(1, MAX_BATCH + 2))}, {"teacher_pks": "all"}):
+                    {"teacher_pks": list(range(1, MAX_BATCH + 2))}, {"teacher_pks": "all"},
+                    {"teacher_pks": [10**30]}, {"teacher_pks": [0]}):
         response = client.post("/api/badges/batch", headers=ADMIN, json=payload)
         assert response.status_code == 422 and "Invalid request" in response.json()["detail"]
 

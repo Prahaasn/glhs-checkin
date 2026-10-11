@@ -21,7 +21,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 
 from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent, Teacher
-from app.security import BodyLimitMiddleware, FailureLimiter, hash_password, verify_password
+from app.security import (BodyLimitMiddleware, FailureLimiter, OptionalTimestamp, RowId, Timestamp,
+                          hash_password, verify_password)
 from app.absences import register_absences
 from app.attention import register_attention
 from app.badges import badge_card, badge_hash, new_badge, register_badges
@@ -285,9 +286,15 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         if sqlite:
             session.execute(text("BEGIN IMMEDIATE"))
         teacher = session.scalar(teacher_query.with_for_update())
+        previous = session.scalar(select(ScanEvent).where(ScanEvent.request_id == str(request_id)))
+        if previous and (teacher is None or not teacher.active):
+            # Saved before the badge was replaced or the person deactivated: a retry still gets its result.
+            if (teacher is not None and teacher.id != previous.teacher_pk) or \
+                    (previous.direction, previous.station, previous.reason) != (direction, station, reason):
+                raise HTTPException(409, "Request ID already used for another scan.")
+            return scan_result(previous, session.get(Teacher, previous.teacher_pk))
         if teacher is None or not teacher.active:
             raise HTTPException(404, "Badge not recognized. Please see the front office.")
-        previous = session.scalar(select(ScanEvent).where(ScanEvent.request_id == str(request_id)))
         if previous:
             if (previous.teacher_pk, previous.direction, previous.station, previous.reason) != (teacher.id, direction, station, reason):
                 raise HTTPException(409, "Request ID already used for another scan.")
@@ -323,21 +330,31 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
 
     @app.post("/api/scans")
     def scan(payload: ScanInput, station=Depends(auth_station), session: Session = Depends(db)):
-        badge_limiter.check(station)
+        known = session.scalar(select(Teacher.id).where(Teacher.badge_hash == badge_hash(payload.code), Teacher.active == True))
+        saved = session.scalar(select(ScanEvent.teacher_pk).where(ScanEvent.request_id == str(payload.request_id),
+                                                                  ScanEvent.station == station))
+        # A retry of a scan this station saved is answered even while unknown badges are throttled, as long as
+        # the badge still identifies that person. Any other code counts toward the limit like a guess, so a
+        # saved request ID cannot be reused to test badge codes without limit.
+        if known is None or known != saved:
+            badge_limiter.check(station)
         try:
-            return record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
-                          payload.direction, payload.request_id, station)
+            result = record(session, select(Teacher).where(Teacher.badge_hash == badge_hash(payload.code)),
+                            payload.direction, payload.request_id, station)
         except HTTPException as error:
             if error.status_code == 404:
                 badge_limiter.failed(station)
             raise
+        if known is None:
+            badge_limiter.failed(station)
+        return result
 
     @app.get("/api/teachers", dependencies=[Depends(auth_admin)])
     def teachers(session: Session = Depends(db)):
         return [teacher_view(t) for t in session.scalars(select(Teacher).order_by(Teacher.name))]
 
     @app.get("/api/presence", dependencies=[Depends(auth_admin)])
-    def presence(at: int, session: Session = Depends(db)):
+    def presence(at: Timestamp, session: Session = Depends(db)):
         if at > int(time.time()):
             raise HTTPException(400, "Choose a time in the past or return to live.")
         snapshots = {}
@@ -373,7 +390,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         return session.scalar(select(Teacher).where(Teacher.id == pk).with_for_update())
 
     @app.post("/api/teachers/{pk}/badge", dependencies=[Depends(auth_admin)])
-    def replace_badge(pk: int, session: Session = Depends(db)):
+    def replace_badge(pk: RowId, session: Session = Depends(db)):
         teacher = locked_teacher(session, pk)
         if not teacher or not teacher.active:
             raise HTTPException(404, "Active teacher not found.")
@@ -383,7 +400,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
                 "badge_code": code, **badge_card(code)}
 
     @app.patch("/api/teachers/{pk}", dependencies=[Depends(auth_admin)])
-    def deactivate(pk: int, session: Session = Depends(db)):
+    def deactivate(pk: RowId, session: Session = Depends(db)):
         teacher = locked_teacher(session, pk)
         if not teacher:
             raise HTTPException(404, "Teacher not found.")
@@ -394,7 +411,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         return teacher_view(teacher)
 
     @app.post("/api/teachers/{pk}/correction")
-    def correction(pk: int, payload: CorrectionInput, actor=Depends(auth_admin), session: Session = Depends(db)):
+    def correction(pk: RowId, payload: CorrectionInput, actor=Depends(auth_admin), session: Session = Depends(db)):
         return record(session, select(Teacher).where(Teacher.id == pk), payload.direction,
                       payload.request_id, f"office:{actor}" if actor is not None else "office", payload.reason)
 
@@ -425,11 +442,11 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
                 for e, t in entries]
 
     @app.get("/api/events", dependencies=[Depends(auth_admin)])
-    def events(since: int | None = None, until: int | None = None, session: Session = Depends(db)):
+    def events(since: OptionalTimestamp = None, until: OptionalTimestamp = None, session: Session = Depends(db)):
         return events_query(session, since, until, 200)
 
     @app.get("/api/export", dependencies=[Depends(auth_admin)])
-    def export(since: int | None = None, until: int | None = None, session: Session = Depends(db)):
+    def export(since: OptionalTimestamp = None, until: OptionalTimestamp = None, session: Session = Depends(db)):
         from datetime import datetime, timezone
         buffer = io.StringIO()
         writer = csv.writer(buffer)

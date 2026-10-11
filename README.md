@@ -107,7 +107,7 @@ node --check app/static/coverage.js
 node --check app/static/dialogs.js
 node --check app/static/attention.js
 node --check app/static/setup.js
-node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs tests/test_setup_ui.cjs
+node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs tests/test_setup_ui.cjs tests/test_station_ui.cjs
 ```
 
 See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.

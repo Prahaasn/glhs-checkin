@@ -376,3 +376,52 @@ def test_weak_environment_keys_refused(monkeypatch):
     monkeypatch.setenv('ADMIN_KEY','weak-admin');monkeypatch.setenv('STATION_1_KEY','weak-one');monkeypatch.setenv('STATION_2_KEY','weak-two')
     with pytest.raises(RuntimeError,match='at least 32'):
         create_app()
+
+
+def test_saved_scan_retry_survives_a_badge_change_or_deactivation(client):
+    t=teacher(client); request_id=str(uuid4())
+    first=scan(client,t['badge_code'],request_id=request_id).json()
+    new=client.post(f"/api/teachers/{t['id']}/badge",headers=ADMIN).json()
+    # The response was lost before the office replaced the badge; the retry still confirms the saved scan.
+    assert scan(client,t['badge_code'],request_id=request_id).json()==first
+    assert scan(client,t['badge_code'],'out',request_id=request_id).status_code==409
+    assert scan(client,t['badge_code']).status_code==404
+    scan(client,new['badge_code'],'out',TWO)
+    assert client.patch(f"/api/teachers/{t['id']}",headers=ADMIN).status_code==200
+    assert scan(client,t['badge_code'],request_id=request_id).json()==first
+    # Someone else's deactivated badge is a different person, not a retry of this scan.
+    other=teacher(client,'Jordan Rivera','002')
+    assert client.patch(f"/api/teachers/{other['id']}",headers=ADMIN).status_code==200
+    assert scan(client,other['badge_code'],request_id=request_id).status_code==409
+    assert len(client.get('/api/events',headers=ADMIN).json())==2
+
+
+def test_saved_scan_retry_is_answered_while_unknown_badges_are_throttled(client):
+    t=teacher(client); request_id=str(uuid4())
+    first=scan(client,t['badge_code'],request_id=request_id).json()
+    for _ in range(30):
+        scan(client,'unknown')
+    assert scan(client,'unknown').status_code==429
+    assert scan(client,t['badge_code'],request_id=request_id).json()==first
+    assert scan(client,t['badge_code'],request_id=request_id,headers=TWO).status_code==409
+
+
+def test_a_saved_request_id_cannot_be_reused_to_test_badge_guesses_without_limit(client):
+    t=teacher(client); request_id=str(uuid4())
+    first=scan(client,t['badge_code'],request_id=request_id).json()
+    answers=[scan(client,f'guess-{number}',request_id=request_id) for number in range(31)]
+    assert all(answer.json()==first for answer in answers[:30]) and answers[30].status_code==429
+    assert scan(client,'unknown').status_code==429
+    assert scan(client,t['badge_code'],request_id=request_id).json()==first
+
+
+def test_oversized_numbers_are_rejected_instead_of_failing_the_server(client):
+    huge=10**30
+    for response in (client.get(f'/api/events?since={-huge}',headers=ADMIN),
+                     client.get(f'/api/presence?at={-huge}',headers=ADMIN),
+                     client.post(f'/api/teachers/{huge}/badge',headers=ADMIN),
+                     client.patch(f'/api/absences/{huge}',headers=ADMIN,json={'version':1,'cancelled':True,'substitute_name':None}),
+                     client.post('/api/absences',headers=ADMIN,json={'teacher_pk':huge,'day':'2026-10-07','substitute_name':None}),
+                     client.patch('/api/absences/1',headers=ADMIN,json={'version':1,'cancelled':True,'substitute_name':None,
+                                                                         'scope':'following','versions':{str(huge):1}})):
+        assert response.status_code==422 and response.json()['detail']=='Invalid request. Check the supplied fields.'

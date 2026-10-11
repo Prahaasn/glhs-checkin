@@ -213,3 +213,23 @@ test('conflict check covers a long plan in range-sized windows', async()=>{
   for (const [start, end] of windows) assert.ok((Date.parse(end) - Date.parse(start)) / 86400000 < 62);
   assert.match(ui.element('coverage-conflict').textContent, /Pat Lee is already covering Jordan Rivera on .*Dec 15/);
 });
+
+test('assigning cover starts with one day when later days already have other cover', ()=>{
+  const day = (id, date, substitute_name) => ({id, day:date, version:1, cancelled:false, substitute_name});
+  const series = {position:1, total:3, first_day:DAY, last_day:'2026-10-09', planned:3,
+    days:[day(1, DAY, null), day(2, '2026-10-08', 'Sam Ray'), day(3, '2026-10-09', null)]};
+  const ui = boot();
+  ui.context.openCoverage('edit', {...entry, series_id:'s1', series});
+  assert.equal(ui.element('coverage-scope').hidden, false);
+  assert.equal(ui.element('coverage-scope-day').checked, true);
+  assert.equal(ui.element('coverage-scope-following').checked, false);
+  assert.match(ui.element('coverage-scope-following-text').textContent, /replaces the cover already set on 1 day \(Sam Ray\)/);
+  // Typing the person who already covers the later days means nothing would be replaced.
+  ui.element('coverage-substitute').value = 'sam  ray';
+  ui.element('coverage-substitute').listeners.input();
+  assert.doesNotMatch(ui.element('coverage-scope-following-text').textContent, /replaces/);
+  const open ={...series, days:series.days.map(item => ({...item, substitute_name:null}))};
+  ui.context.openCoverage('edit', {...entry, series_id:'s1', series:open});
+  assert.equal(ui.element('coverage-scope-following').checked, true);
+  assert.doesNotMatch(ui.element('coverage-scope-following-text').textContent, /replaces/);
+});

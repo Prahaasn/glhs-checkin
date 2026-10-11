@@ -29,7 +29,7 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 | GET | `/substitutes` | Office | Substitute names used on active plans in the last year, newest first |
 | GET | `/attention` | Office | Today's exceptions with suggested reviewed actions (read-only) |
 
-`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
+`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database IDs, timestamps, and versions must fit a 32-bit SQL integer (IDs and versions from 1, timestamps from 0, up to 2147483647); anything outside returns 422. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
 
 ## Register a teacher
 
@@ -71,7 +71,7 @@ Generate a new UUID for each physical scan. The example UUID is illustrative; do
 
 Successful response fields: `name`, `inside`, `changed`, `direction`, `occurred_at`, and `message`. Times are server-generated Unix seconds. An IN scan for someone already inside returns `changed: false` and is recorded as a repeat. OUT follows the same rule.
 
-If the response is lost or a server/network error makes the outcome uncertain, retry with **the same request UUID and payload**. The backend returns the original recorded result without changing current status again. That result describes the original scan, even if the teacher subsequently scanned in the opposite direction. Reusing a UUID for a different teacher, direction, station, or correction reason returns 409.
+If the response is lost or a server/network error makes the outcome uncertain, retry with **the same request UUID and payload**. The backend returns the original recorded result without changing current status again. That result describes the original scan, even if the teacher subsequently scanned in the opposite direction, had the badge replaced, or was deactivated, and even while that station's unknown-badge throttle is active. Reusing a UUID for a different teacher, direction, station, or correction reason returns 409.
 
 Unknown or inactive badges return 404. Authentication errors return 401. Invalid request fields return 422. The `presence` field is `in`, `out`, or `unrecorded`; `inside` is null when unrecorded and otherwise a boolean; an imported/new teacher is unrecorded until a scan or correction establishes status. The first OUT observation records a known OUT status.
 
@@ -111,7 +111,9 @@ cancelling or restoring them keeps each day's own substitute. The response adds
 
 GET `/absences` returns `day`, `today`, `entries`, `planned`, `covered`, and
 `unassigned`. Add `include_cancelled=true` to include cancelled rows; counts
-still exclude them. Entries include the office actor, change timestamp, version,
+still exclude them. Plans for deactivated staff stay listed (`active: false`) so
+the office can cancel them, but are not counted as planned or needing cover;
+`/absences/range` leaves them out, matching the attention queue. Entries include the office actor, change timestamp, version,
 and the teacher's **current** recorded presence, even when viewing another
 school date. Multi-day entries add `series` with `position`, `total`,
 `first_day`, `last_day`, active `planned` days, and each day's `id`, `day`,

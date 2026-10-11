@@ -191,16 +191,29 @@ function renderCoveragePreview() {
     button.className = 'chip' + (Number(button.dataset.days) === count ? ' selected' : ''));
 }
 
+// Later days whose cover differs from the name being saved would be overwritten by "this day and later".
+function coverOverwrites(entry, name) {
+  return laterDays(entry).filter(day => day.substitute_name && personName(day.substitute_name) !== personName(name));
+}
+
+function renderCoverageScopeText() {
+  const entry = coverageEditing, later = laterDays(entry);
+  if (!later.length) return;
+  const others = coverageAction === 'edit' ? coverOverwrites(entry, $('coverage-substitute').value) : [];
+  $('coverage-scope-following-text').textContent = dayLabel(entry.day) + ' and ' + plural(later.length, 'later day') +
+    ' (through ' + dayLabel(later[later.length - 1].day) + ')' + (others.length ? ' — replaces the cover already set on ' +
+    plural(others.length, 'day') + ' (' + [...new Set(others.map(day => day.substitute_name))].join(', ') + ')' : '');
+}
+
 function renderCoverageScope(entry, action) {
   const later = laterDays(entry);
   $('coverage-scope').hidden = !later.length;
   if (!later.length) return;
-  const last = later[later.length - 1].day;
   $('coverage-scope-day-text').textContent = 'Only ' + dayLabel(entry.day);
-  $('coverage-scope-following-text').textContent = dayLabel(entry.day) + ' and ' + plural(later.length, 'later day') +
-    ' (through ' + dayLabel(last) + ')';
-  // Assigning cover usually spans the rest of a plan; cancelling or restoring starts narrow.
-  const following = action === 'edit';
+  renderCoverageScopeText();
+  // Assigning cover usually spans the rest of a plan; cancelling or restoring starts narrow, and so does an
+  // edit that would overwrite someone else's cover on a later day.
+  const following = action === 'edit' && !coverOverwrites(entry, entry.substitute_name).length;
   $('coverage-scope-following').checked = following;
   $('coverage-scope-day').checked = !following;
 }
@@ -343,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   ['coverage-form-day','coverage-days'].forEach(id => $(id).addEventListener('input', () => { renderCoveragePreview(); scheduleCoverageCheck(); }));
   ['coverage-teacher','coverage-scope-day','coverage-scope-following'].forEach(id => $(id).addEventListener('change', scheduleCoverageCheck));
-  $('coverage-substitute').addEventListener('input', scheduleCoverageCheck);
+  $('coverage-substitute').addEventListener('input', () => { renderCoverageScopeText(); scheduleCoverageCheck(); });
   $('coverage-rows').onclick = event => {
     const button = event.target.closest('button[data-absence]');
     if (!button) return;

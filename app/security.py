@@ -5,8 +5,16 @@ import hmac
 import secrets
 from collections import OrderedDict
 from threading import Lock
+from typing import Annotated
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Path, Query
+
+# Request integers must fit the 32-bit SQL columns they are compared with; larger values are invalid
+# input (SQLite cannot bind them and PostgreSQL rejects them), not a server or database failure.
+SQL_INT_MAX = 2**31 - 1
+RowId = Annotated[int, Path(ge=1, le=SQL_INT_MAX)]
+Timestamp = Annotated[int, Query(ge=0, le=SQL_INT_MAX)]
+OptionalTimestamp = Annotated[int | None, Query(ge=0, le=SQL_INT_MAX)]
 
 
 def hash_password(password: str) -> str:

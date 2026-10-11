@@ -109,8 +109,9 @@ def demo_app(root, run_dir):
     app = create_app(settings["DATABASE_URL"], keys[0], {"front-1": keys[1], "front-2": keys[2]},
                      allowed_hosts=["127.0.0.1", "localhost"])
     with Session(app.state.engine) as session:
-        staff = list(session.scalars(select(Teacher)))
-        if len(staff) != len(NAMES) or any(not person.teacher_id.startswith("DEMO-") for person in staff):
+        # The generated fictional staff must still be there; staff added during the rehearsal are fine.
+        generated = set(session.scalars(select(Teacher.teacher_id).where(Teacher.teacher_id.startswith("DEMO-"))))
+        if not {f"DEMO-{index:03}" for index in range(1, len(NAMES) + 1)} <= generated:
             app.state.engine.dispose()
             raise ValueError("Demo server requires the generated fictional roster.")
     return app
@@ -138,7 +139,9 @@ def main():
                 raise ValueError("Choose a port between 1 and 65535.")
             import uvicorn
             uvicorn.run(demo_app(root, args.directory), host="127.0.0.1", port=args.port)
-    except (ValueError, OSError):
+    except ValueError as error:
+        parser.exit(1, f"Demo setup failed: {error}\n")
+    except OSError:
         parser.exit(1, "Demo setup failed. Check the checkout, demo directory, and local file permissions.\n")
 
 

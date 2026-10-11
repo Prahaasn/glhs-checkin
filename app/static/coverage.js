@@ -197,10 +197,14 @@ function renderCoverageScope(entry, action) {
   if (!later.length) return;
   const last = later[later.length - 1].day;
   $('coverage-scope-day-text').textContent = 'Only ' + dayLabel(entry.day);
+  // Later days already covered by someone else would be overwritten, so say so and start narrow.
+  const others = action === 'edit' ? later.filter(day => day.substitute_name &&
+    personName(day.substitute_name) !== personName(entry.substitute_name)) : [];
   $('coverage-scope-following-text').textContent = dayLabel(entry.day) + ' and ' + plural(later.length, 'later day') +
-    ' (through ' + dayLabel(last) + ')';
+    ' (through ' + dayLabel(last) + ')' + (others.length ? ' — replaces the cover already set on ' +
+    plural(others.length, 'day') + ' (' + [...new Set(others.map(day => day.substitute_name))].join(', ') + ')' : '');
   // Assigning cover usually spans the rest of a plan; cancelling or restoring starts narrow.
-  const following = action === 'edit';
+  const following = action === 'edit' && !others.length;
   $('coverage-scope-following').checked = following;
   $('coverage-scope-day').checked = !following;
 }

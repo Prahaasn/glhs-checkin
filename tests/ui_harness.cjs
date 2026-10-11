@@ -25,7 +25,7 @@ const deferred = () => {
 const flush = () => new Promise(done => setImmediate(done));
 
 function boot(routes = {}) {
-  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = new Map(), bodyClasses = new Set();
+  const elements = new Map(), listeners = {}, requests = [], sent = [], timers = new Map(), bodyClasses = new Set(), stored = new Map();
   let timerId = 0;
   const element = id => {
     if (!elements.has(id)) {
@@ -48,7 +48,8 @@ function boot(routes = {}) {
     // Timers are held until a test runs them, so delayed UI resets can be checked deterministically.
     setInterval(){}, setTimeout(handler){timers.set(++timerId, handler); return timerId;}, clearTimeout(id){timers.delete(id);},
     encodeURIComponent,
-    sessionStorage:{removeItem(){},getItem(){return null;},setItem(){}},
+    sessionStorage:{removeItem(key){stored.delete(key);}, getItem:key=>stored.has(key) ? stored.get(key) : null,
+      setItem(key, value){stored.set(key, String(value));}},
     fetch:async(url, options={})=>{
       const route = new URL(url, 'http://local.test').pathname.replace('/api','');
       requests.push(route); sent.push({url, route, method:options.method || 'GET',
@@ -76,7 +77,7 @@ function boot(routes = {}) {
   vm.runInContext("role='admin';connected=true;page='coverage';directoryStaff=" + JSON.stringify(staff), context);
   element('coverage-day').value = DAY;
   const runTimers = () => { const due = [...timers.values()]; timers.clear(); due.forEach(handler => handler()); };
-  return {context, element, requests, sent, runTimers, bodyClasses, read:code=>vm.runInContext(code,context)};
+  return {context, element, requests, sent, runTimers, bodyClasses, stored, read:code=>vm.runInContext(code,context)};
 }
 
 module.exports = {DAY, staff, entry, coverage, range, attention, setup, response, deferred, flush, boot};

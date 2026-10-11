@@ -1,7 +1,7 @@
 """Office-only planned coverage, separate from recorded attendance."""
 import time
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import AbsenceChange, OfficeUser, Teacher, TeacherAbsence
+from app.security import SQL_INT_MAX, RowId
 
 MAX_SCHOOL_DAYS = 90
 MAX_RANGE_DAYS = 62
@@ -45,17 +46,18 @@ class SubstituteInput(BaseModel):
 
 
 class AbsenceInput(SubstituteInput):
-    teacher_pk: int = Field(gt=0)
+    teacher_pk: int = Field(gt=0, le=SQL_INT_MAX)
     day: date
     school_days: int = Field(1, ge=1, le=MAX_SCHOOL_DAYS)
 
 
 class AbsenceUpdate(SubstituteInput):
-    version: int = Field(gt=0)
+    version: int = Field(gt=0, le=SQL_INT_MAX)
     cancelled: bool
     # "following" also changes this plan's later days that share this day's cancelled state.
     scope: Literal["day", "following"] = "day"
-    versions: dict[int, int] = Field(default_factory=dict, max_length=MAX_SCHOOL_DAYS)
+    versions: dict[Annotated[int, Field(gt=0, le=SQL_INT_MAX)], Annotated[int, Field(gt=0, le=SQL_INT_MAX)]] = Field(
+        default_factory=dict, max_length=MAX_SCHOOL_DAYS)
 
 
 def view(entry, teacher, actor_name):
@@ -69,7 +71,8 @@ def view(entry, teacher, actor_name):
 
 
 def totals(entries):
-    active = [entry for entry in entries if not entry["cancelled"]]
+    # Deactivated staff keep their plan history but no longer need cover, matching the attention queue.
+    active = [entry for entry in entries if not entry["cancelled"] and entry["active"]]
     return {"planned": len(active), "covered": sum(bool(entry["substitute_name"]) for entry in active),
             "unassigned": sum(not entry["substitute_name"] for entry in active)}
 
@@ -134,7 +137,7 @@ def register_absences(app, sqlite, db, auth_admin):
         if end < start or (end - start).days >= MAX_RANGE_DAYS:
             raise HTTPException(400, f"Choose a range of 1 to {MAX_RANGE_DAYS} days.")
         entries = attach_series(session, planned(session, TeacherAbsence.day >= start, TeacherAbsence.day <= end,
-                                                 TeacherAbsence.cancelled == False), detail=False)
+                                                 TeacherAbsence.cancelled == False, Teacher.active == True), detail=False)
         days = {}
         for entry in entries:
             days.setdefault(entry["day"], []).append(entry)
@@ -188,7 +191,7 @@ def register_absences(app, sqlite, db, auth_admin):
         return attach_series(session, [view(entries[0], teacher, actor_name(session, actor))])[0]
 
     @app.patch("/api/absences/{pk}")
-    def update_absence(pk: int, payload: AbsenceUpdate, actor=Depends(auth_admin), session: Session = Depends(db)):
+    def update_absence(pk: RowId, payload: AbsenceUpdate, actor=Depends(auth_admin), session: Session = Depends(db)):
         begin_write(session)
         teacher_pk = session.scalar(select(TeacherAbsence.teacher_pk).where(TeacherAbsence.id == pk))
         if teacher_pk is None:
@@ -229,7 +232,7 @@ def register_absences(app, sqlite, db, auth_admin):
         return attach_series(session, [result])[0]
 
     @app.get("/api/absences/{pk}/changes", dependencies=[Depends(auth_admin)])
-    def changes(pk: int, session: Session = Depends(db)):
+    def changes(pk: RowId, session: Session = Depends(db)):
         if not session.get(TeacherAbsence, pk):
             raise HTTPException(404, "Absence not found.")
         query = (select(AbsenceChange, OfficeUser.display_name)

@@ -27,6 +27,8 @@
    fixed; to reschedule, cancel and plan the correct date. On a multi-day plan,
    choose **Only this day** or **this day and the later days**; changing cover
    defaults to the later days because one substitute usually covers the rest.
+   If a later day already has a different substitute, it starts with only this
+   day and the later-days choice names the cover it would replace.
    Each row shows its place in the plan, such as Day 2 of 5. A substitute named
    on two plans for the same day is flagged, as is a teacher recorded IN on a
    day they are planned out.

@@ -342,3 +342,15 @@ def test_cancelling_and_restoring_later_days_keeps_each_days_own_cover(client):
 
 def test_plan_past_the_last_representable_date_is_rejected(client):
     assert plan(client, teacher(client), day="9999-12-31", school_days=2).status_code == 422
+
+
+def test_deactivated_staff_no_longer_count_as_needing_cover(client):
+    person = teacher(client)
+    assert plan(client, person, day=THURSDAY, school_days=3).status_code == 201
+    assert client.get(f"/api/absences?day={THURSDAY}", headers=ADMIN).json()["unassigned"] == 1
+    assert client.patch(f"/api/teachers/{person['id']}", headers=ADMIN).status_code == 200
+    day = client.get(f"/api/absences?day={THURSDAY}", headers=ADMIN).json()
+    # The plan stays visible (marked inactive) so the office can cancel it, but it needs no cover.
+    assert (day["planned"], day["covered"], day["unassigned"]) == (0, 0, 0) and day["entries"][0]["active"] is False
+    upcoming = client.get(f"/api/absences/range?start={THURSDAY}&end=2026-10-16", headers=ADMIN).json()
+    assert (upcoming["planned"], upcoming["unassigned"], upcoming["days"]) == (0, 0, [])

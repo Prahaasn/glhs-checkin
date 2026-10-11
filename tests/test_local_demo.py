@@ -102,3 +102,13 @@ def test_demo_server_ignores_inherited_host_and_database_configuration(tmp_path,
         assert client.get("/api/health").status_code == 200
         assert client.get("/api/health", headers={"Host": "untrusted.example"}).status_code == 400
     assert os.environ["ALLOWED_HOSTS"] == "*"
+
+
+def test_demo_restarts_after_staff_are_added_during_the_rehearsal(tmp_path):
+    directory = create_demo(tmp_path)
+    password = (directory / "office-login.txt").read_text().split("Password: ", 1)[1].strip()
+    with TestClient(demo_app(tmp_path, directory), base_url="http://127.0.0.1") as client:
+        assert client.post("/api/office-session", json={"username": "demo", "password": password}).status_code == 200
+        assert client.post("/api/teachers", json={"name": "Morgan Lee", "teacher_id": "T-100"}).status_code == 201
+    with TestClient(demo_app(tmp_path, directory), base_url="http://127.0.0.1") as restarted:
+        assert restarted.get("/api/health").status_code == 200

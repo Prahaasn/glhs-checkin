@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.main import TeacherInput, badge_hash, create_app
+from app.main import TeacherInput, badge_hash, create_app, prepare_sqlite
 from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent, Teacher
 from app.security import hash_password
 from uuid import uuid4
@@ -57,8 +57,7 @@ def main():
                 password_hash = hash_password(password)
             except ValueError as error:
                 raise SystemExit(str(error)) from error
-        if engine.dialect.name == 'sqlite':
-            Base.metadata.create_all(engine)
+        prepare_sqlite(engine)
         with Session(engine) as session:
             user = session.query(OfficeUser).filter_by(username=username).first()
             if args.command == 'add-user':
@@ -80,7 +79,7 @@ def main():
         return
     if engine.dialect.name != 'sqlite':
         raise SystemExit('Demo seeding is restricted to local SQLite.')
-    Base.metadata.create_all(engine)
+    prepare_sqlite(engine)
     codes=[]
     with Session(engine) as session:
         if session.query(Teacher).filter(~Teacher.teacher_id.like('DEMO-%')).first():
@@ -90,7 +89,7 @@ def main():
             if session.query(Teacher).filter_by(teacher_id=validated.teacher_id).first():
                 continue
             code=secrets.token_urlsafe(24)
-            teacher = Teacher(teacher_id=validated.teacher_id,name=name,badge_hash=badge_hash(code))
+            teacher = Teacher(teacher_id=validated.teacher_id,name=name,badge_hash=badge_hash(code),badge_issued_at=int(time.time()))
             session.add(teacher)
             session.flush()
             # A sample school day makes each recorded state visible without implying

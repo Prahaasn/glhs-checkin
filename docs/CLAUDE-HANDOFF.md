@@ -119,3 +119,30 @@ Still open: guided setup and batch badge printing (plan item 4), a school
 holiday calendar for multi-day plans, bulk Record OUT for many stale IN staff,
 an expected-arrival time for the no-arrival list, and the earlier product
 decisions on a substitute directory, partial days, and notifications.
+
+## Update — October 11, 2026 (Claude)
+
+Verified on GitHub: #6 and #7 both merged to main on October 7 with green CI;
+the stacking note above no longer applies. Platform plan item 4 is now built on
+branch codex/guided-setup (draft PR; verify its live state):
+
+- **Setup** page: a read-only checklist of office logins, roster, badges on
+  record, scanner-station sign-ins, scans today at each station, and network.
+  Each step shows the next action or the exact server command; it never shows
+  keys or passwords. A brand-new install with no staff opens it after sign-in.
+- **Print badges** on Staff & badges: choose staff (default: no badge on
+  record), review how many working badges are replaced, then issue them in one
+  all-or-nothing transaction. Cards (QR + Code 128, four per letter page) are
+  drawn from patterns the server returns once; codes are never stored.
+- New nullable `teachers.badge_issued_at` column. SQLite adds it automatically,
+  including for command-line imports; PostgreSQL needs
+  docs/migrations/2026-10-11-badge-issued-at.sql. Upgrades backfill staff added
+  on the office screen; imported (DIR-) staff show "no badge on record". A batch
+  sends the badge dates it showed and is refused if any changed meanwhile.
+
+Still open: a school holiday calendar, bulk Record OUT, expected-arrival times,
+and the product decisions on substitutes, partial days, and notifications. A
+read-only audit of main on October 11 found six defects (stale pending scan
+after a 401, cover copied over later substitutes, retry after badge change,
+inactive staff in coverage counts, numeric overflow 500s, demo restart after
+adding staff); see the follow-up fix PR.

@@ -14,8 +14,8 @@ from urllib.request import Request, urlopen
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.main import TeacherInput, badge_hash, create_app
-from app.models import Base, Teacher
+from app.main import TeacherInput, badge_hash, create_app, prepare_sqlite
+from app.models import Teacher
 
 SOURCE_URL = 'https://greenlevelhs.wcpss.net/our-school/faculty-staff-directory'
 
@@ -160,8 +160,7 @@ def import_directory(engine, manifest, dry_run=False):
             raise ValueError('Roster has an invalid or duplicate directory ID.')
         ids.add(directory_id)
         validated.append(TeacherInput(teacher_id='DIR-'+directory_id, name=row['name']))
-    if engine.dialect.name == 'sqlite':
-        Base.metadata.create_all(engine)
+    prepare_sqlite(engine)
     with Session(engine) as session:
         if engine.dialect.name == 'sqlite':
             session.execute(text('BEGIN IMMEDIATE'))

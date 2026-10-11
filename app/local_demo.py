@@ -6,6 +6,7 @@ import secrets
 import shlex
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 from sqlalchemy import select
@@ -53,7 +54,8 @@ def create_demo(root, port=8317):
         with Session(app.state.engine) as session:
             for index, name in enumerate(NAMES, 1):
                 code = secrets.token_urlsafe(24)
-                staff = Teacher(name=name, teacher_id=f"DEMO-{index:03}", badge_hash=badge_hash(code))
+                staff = Teacher(name=name, teacher_id=f"DEMO-{index:03}", badge_hash=badge_hash(code),
+                                badge_issued_at=int(time.time()))
                 session.add(staff)
                 session.flush()
                 badges.append({"id": staff.id, "name": name, "teacher_id": staff.teacher_id, "code": code})

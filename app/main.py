@@ -1,5 +1,4 @@
 import csv
-import hashlib
 import hmac
 import io
 import os
@@ -25,23 +24,34 @@ from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent
 from app.security import BodyLimitMiddleware, FailureLimiter, hash_password, verify_password
 from app.absences import register_absences
 from app.attention import register_attention
+from app.badges import badge_card, badge_hash, new_badge, register_badges
+from app.readiness import register_readiness
 
 STATIC = Path(__file__).parent / "static"
 DUMMY_PASSWORD_HASH = hash_password("nonexistent-office-account")
 
 
-def badge_hash(code: str) -> str:
-    return hashlib.sha256(code.strip().encode()).hexdigest()
-
-
 def upgrade_sqlite(engine):
     """Additive upgrades for local SQLite files created by earlier pilot versions."""
     with engine.begin() as connection:
-        columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(teacher_absences)")}
-        if "series_id" not in columns:
+        def columns(table):
+            return {row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")}
+        if "series_id" not in columns("teacher_absences"):
             connection.exec_driver_sql("ALTER TABLE teacher_absences ADD COLUMN series_id VARCHAR(36)")
         connection.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_teacher_absences_series_id ON teacher_absences (series_id)")
+        if "badge_issued_at" not in columns("teachers"):
+            connection.exec_driver_sql("ALTER TABLE teachers ADD COLUMN badge_issued_at INTEGER")
+            # Staff added on the office screen or in a demo got a usable badge when created; imported
+            # directory staff (DIR-) did not, so only they start with no badge on record.
+            connection.exec_driver_sql("UPDATE teachers SET badge_issued_at = created_at WHERE teacher_id NOT LIKE 'DIR-%'")
+
+
+def prepare_sqlite(engine):
+    """Create missing local tables and columns; command-line tools skip the server's startup hook."""
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(engine)
+        upgrade_sqlite(engine)
 
 
 class TeacherInput(BaseModel):
@@ -98,9 +108,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     @asynccontextmanager
     async def lifespan(_):
         # Local bootstrap only. Hosted databases require the explicit provisioning command.
-        if sqlite:
-            Base.metadata.create_all(engine)
-            upgrade_sqlite(engine)
+        prepare_sqlite(engine)
         yield
         engine.dispose()
 
@@ -109,7 +117,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     limiter = FailureLimiter()
     badge_limiter = FailureLimiter(limit=30)
     default_hosts = "127.0.0.1,localhost,[::1]" + (",testserver" if database_url else "")
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts or os.getenv("ALLOWED_HOSTS", default_hosts).split(","))
+    hosts = [host.strip() for host in (allowed_hosts or os.getenv("ALLOWED_HOSTS", default_hosts).split(","))]
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
     app.add_middleware(BodyLimitMiddleware)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -263,7 +272,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     def teacher_view(t):
         return {"id": t.id, "teacher_id": t.teacher_id, "name": t.name, "active": t.active,
                 "inside": None if t.last_seen is None else t.inside, "last_seen": t.last_seen,
-                "presence": "unrecorded" if t.last_seen is None else ("in" if t.inside else "out")}
+                "presence": "unrecorded" if t.last_seen is None else ("in" if t.inside else "out"),
+                "badge_issued_at": t.badge_issued_at}
 
     def scan_result(e, teacher):
         return {"name": teacher.name, "inside": e.direction == "in", "changed": e.changed,
@@ -347,15 +357,15 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     @app.post("/api/teachers", dependencies=[Depends(auth_admin)], status_code=201)
     def add_teacher(payload: TeacherInput, session: Session = Depends(db)):
         from sqlalchemy.exc import IntegrityError
-        code = secrets.token_urlsafe(24)
-        teacher = Teacher(teacher_id=payload.teacher_id, name=payload.name, badge_hash=badge_hash(code))
+        teacher = Teacher(teacher_id=payload.teacher_id, name=payload.name)
+        code = new_badge(teacher)
         session.add(teacher)
         try:
             session.commit()
         except IntegrityError:
             session.rollback()
             raise HTTPException(409, "Teacher ID already exists.")
-        return {**teacher_view(teacher), "badge_code": code}
+        return {**teacher_view(teacher), "badge_code": code, **badge_card(code)}
 
     def locked_teacher(session, pk):
         if sqlite:
@@ -367,10 +377,10 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         teacher = locked_teacher(session, pk)
         if not teacher or not teacher.active:
             raise HTTPException(404, "Active teacher not found.")
-        code = secrets.token_urlsafe(24)
-        teacher.badge_hash = badge_hash(code)
+        code = new_badge(teacher)
         session.commit()
-        return {"badge_code": code, "name": teacher.name}
+        return {"id": teacher.id, "name": teacher.name, "teacher_id": teacher.teacher_id,
+                "badge_code": code, **badge_card(code)}
 
     @app.patch("/api/teachers/{pk}", dependencies=[Depends(auth_admin)])
     def deactivate(pk: int, session: Session = Depends(db)):
@@ -434,4 +444,6 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
 
     register_absences(app, sqlite, db, auth_admin)
     register_attention(app, db, auth_admin)
+    register_badges(app, sqlite, db, auth_admin)
+    register_readiness(app, db, auth_admin, stations, hosts)
     return app

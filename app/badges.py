@@ -15,6 +15,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models import Teacher
+from app.security import SQL_INT_MAX
 
 MAX_BATCH = 200
 START_B, STOP = 104, 106
@@ -67,9 +68,6 @@ def qr_rows(value):
 
 def badge_card(code):
     return {"qr": qr_rows(code), "code128": code128_modules(code)}
-
-
-SQL_INT_MAX = 2**31 - 1  # IDs and times beyond a 32-bit SQL integer are invalid input, not a database error.
 
 
 class BatchInput(BaseModel):

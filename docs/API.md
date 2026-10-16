@@ -128,8 +128,13 @@ refreshing the date before retrying.
 
 GET `/attention` is read-only. It returns `today`, `day_start` (Eastern midnight
 as a Unix timestamp), `items`, `not_arrived` (active staff IDs with no IN scan or
-correction today, no plan for today, and not recorded IN; empty on weekends),
-`planned_today`, and today's `coverage` counts. Items, in order:
+correction today, no plan for today, and not recorded IN; empty before the arrival
+cutoff and on weekends), `arrival_cutoff` (24-hour Eastern time, default `07:30`),
+`arrival_check_active` (weekday and at or after that cutoff), `planned_today`,
+and today's `coverage` counts. Configure `ARRIVAL_CUTOFF=HH:MM` on the server and
+restart to change the cutoff; invalid values prevent startup. The browser hides
+the **Not checked in today** filter until `arrival_check_active` is true.
+Other attention items remain available before the cutoff. Items, in order:
 
 | `kind` | When |
 | --- | --- |
@@ -138,7 +143,7 @@ correction today, no plan for today, and not recorded IN; empty on weekends),
 | `stale_in` | Recorded IN since before today with no scan of any kind today |
 | `double_booked` | One substitute name (case/space-insensitive) on two plans the same day, within 14 days |
 | `needs_cover_upcoming` | Later days without a substitute within 14 days, one item per plan |
-| `not_arrived` | Summary of `not_arrived` (informational) |
+| `not_arrived` | Summary of staff not checked in today, from the weekday arrival cutoff (informational) |
 
 Each item has a `tone` (`warning`, `action`, `info`), a `title`, a `detail`, and
 `actions` the office reviews before anything is saved: `edit_cover` and
@@ -146,6 +151,13 @@ Each item has a `tone` (`warning`, `action`, `info`), a `title`, a `detail`, and
 suggested direction and reason, `open_day` opens a coverage date, and
 `show_not_arrived` filters the roster. Inactive staff and cancelled plans are
 excluded. The queue never checks anyone out or reassigns cover automatically.
+
+The cutoff does not restrict scans or mark anyone absent. An IN scan or office
+IN correction at any time today satisfies today's arrival review, even after
+that person scans OUT. Repeated OUT/IN trips update current recorded presence and
+append scan history normally. The next weekday reviews that day's arrivals again.
+The API presence value `unrecorded` is unchanged; the office calls it **No
+recorded status**, meaning no scan or correction has established a status yet.
 
 ## Storage and rollout
 

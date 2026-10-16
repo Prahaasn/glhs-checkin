@@ -12,7 +12,7 @@ const entry = {id:1, teacher_pk:1, teacher_id:'DEMO-001', name:'Alex Morgan',
   updated_at:1, updated_by:'Office', presence:'unrecorded'};
 const coverage = {day:DAY, today:DAY, entries:[entry], planned:1, covered:0, unassigned:1};
 const range = {start:DAY, end:'2026-10-20', today:DAY, planned:0, covered:0, unassigned:0, days:[]};
-const attention = {today:DAY, day_start:0, items:[], not_arrived:[], planned_today:[],
+const attention = {today:DAY, day_start:0, arrival_cutoff:'07:30', arrival_check_active:true, items:[], not_arrived:[], planned_today:[],
   coverage:{planned:0, covered:0, unassigned:0}};
 const setup = {steps:[], remaining:0, staff:{active:1, inactive:0, demo:true}, badges:{missing:[], issued:1},
   office_users:1, stations:[], https:false, lan:false};

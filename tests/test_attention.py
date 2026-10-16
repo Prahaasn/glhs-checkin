@@ -1,13 +1,32 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.absences import school_today
-from app.attention import day_start
+from app.attention import SCHOOL_ZONE, day_start
+from app.main import create_app
 from app.models import ScanEvent, Teacher
 from test_absences import change, plan
 from test_checkin import ADMIN, ONE, TWO, client, scan, teacher
+
+
+@pytest.fixture(autouse=True)
+def school_clock(monkeypatch):
+    class SchoolClock(datetime):
+        current = datetime.now(SCHOOL_ZONE).replace(hour=12, minute=0, second=0, microsecond=0)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current.astimezone(tz)
+
+    monkeypatch.delenv("ARRIVAL_CUTOFF", raising=False)
+    monkeypatch.setattr("app.attention.datetime", SchoolClock)
+    monkeypatch.setattr("app.main.time", SimpleNamespace(time=lambda: SchoolClock.current.timestamp()))
+    return SchoolClock
 
 
 def attention(client):
@@ -110,3 +129,85 @@ def test_cancelled_plans_inactive_staff_and_stations_are_excluded(client):
     assert client.get("/api/attention", headers=ONE).status_code == 401
     assert client.get("/api/attention", headers=TWO).status_code == 401
     assert client.get("/api/attention").status_code == 401
+
+
+@pytest.mark.parametrize("instant,active", [
+    ("2026-10-19T11:29:59+00:00", False),  # 7:29:59 Eastern during daylight time
+    ("2026-10-19T11:30:00+00:00", True),
+    ("2026-12-07T12:29:59+00:00", False),  # Same local cutoff during standard time
+    ("2026-12-07T12:30:00+00:00", True),
+    ("2026-10-17T12:00:00+00:00", False),  # Saturday
+    ("2026-10-18T12:00:00+00:00", False),  # Sunday
+])
+def test_morning_review_opens_at_730_eastern_on_weekdays(client, school_clock, instant, active):
+    school_clock.current = datetime.fromisoformat(instant)
+    missing = teacher(client)
+    data = attention(client)
+    assert data["arrival_cutoff"] == "07:30"
+    assert data["arrival_check_active"] is active
+    assert data["not_arrived"] == ([missing["id"]] if active else [])
+    assert ("not_arrived" in kinds(data)) is active
+    if active:
+        assert "not checked in today" in data["items"][-1]["title"]
+
+
+def test_before_cutoff_only_the_morning_list_is_suppressed(client, school_clock):
+    school_clock.current = datetime(2026, 10, 19, 7, 15, tzinfo=SCHOOL_ZONE)
+    missing = teacher(client)
+    away = teacher(client, "Jordan Rivera", "002")
+    plan(client, away, None, "2026-10-19")
+    data = attention(client)
+    assert kinds(data) == ["needs_cover_today"]
+    assert data["not_arrived"] == []
+    assert data["coverage"]["unassigned"] == 1
+    assert client.get("/api/teachers", headers=ADMIN).json()[0]["presence"] == "unrecorded"
+    assert client.get("/api/events", headers=ADMIN).json() == []
+
+
+def test_late_arrival_departure_and_return_keep_current_presence_and_morning_review_separate(client, school_clock):
+    school_clock.current = datetime(2026, 10, 19, 7, 30, tzinfo=SCHOOL_ZONE)
+    person = teacher(client)
+    assert attention(client)["not_arrived"] == [person["id"]]
+    for hour, direction, station in [(9, "in", ONE), (12, "out", TWO), (13, "in", ONE), (16, "out", TWO)]:
+        school_clock.current = school_clock.current.replace(hour=hour)
+        result = scan(client, person["badge_code"], direction, station)
+        assert result.status_code == 200 and result.json()["changed"]
+        assert attention(client)["not_arrived"] == []
+        assert "not_arrived" not in kinds(attention(client))
+        current = client.get("/api/teachers", headers=ADMIN).json()[0]
+        assert current["presence"] == direction
+    history = client.get("/api/events", headers=ADMIN).json()
+    assert [event["direction"] for event in history] == ["out", "in", "out", "in"]
+    # A new weekday reviews arrivals again; yesterday's check-ins don't satisfy today.
+    school_clock.current = datetime(2026, 10, 20, 7, 30, tzinfo=SCHOOL_ZONE)
+    assert attention(client)["not_arrived"] == [person["id"]]
+
+
+def test_arrival_before_cutoff_still_counts_after_an_early_departure(client, school_clock):
+    school_clock.current = datetime(2026, 10, 19, 7, 0, tzinfo=SCHOOL_ZONE)
+    person = teacher(client)
+    assert scan(client, person["badge_code"]).status_code == 200
+    school_clock.current = school_clock.current.replace(minute=15)
+    assert scan(client, person["badge_code"], "out", TWO).status_code == 200
+    school_clock.current = school_clock.current.replace(minute=30)
+    assert attention(client)["arrival_check_active"]
+    assert attention(client)["not_arrived"] == []
+
+
+def test_configured_cutoff_is_used_for_morning_review(tmp_path, monkeypatch, school_clock):
+    monkeypatch.setenv("ARRIVAL_CUTOFF", "08:00")
+    app = create_app(f"sqlite:///{tmp_path / 'cutoff.db'}", "test-admin", {"front-1": "test-one", "front-2": "test-two"})
+    with TestClient(app) as browser:
+        person = teacher(browser)
+        school_clock.current = datetime(2026, 10, 19, 7, 59, tzinfo=SCHOOL_ZONE)
+        assert attention(browser)["not_arrived"] == []
+        school_clock.current = school_clock.current.replace(hour=8, minute=0)
+        data = attention(browser)
+        assert data["arrival_cutoff"] == "08:00" and data["not_arrived"] == [person["id"]]
+
+
+@pytest.mark.parametrize("value", ["7:30", "25:00", "07:60", "07:30+00:00"])
+def test_invalid_arrival_cutoff_is_rejected_at_startup(tmp_path, monkeypatch, value):
+    monkeypatch.setenv("ARRIVAL_CUTOFF", value)
+    with pytest.raises(RuntimeError, match="ARRIVAL_CUTOFF"):
+        create_app(f"sqlite:///{tmp_path / 'invalid.db'}", "test-admin", {"front-1": "test-one", "front-2": "test-two"})

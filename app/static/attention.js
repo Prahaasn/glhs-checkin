@@ -8,6 +8,7 @@ function clearAttention() {
   $('attention-list').innerHTML = '<li class="empty">Checking today\'s records…</li>';
   $('attention-count').hidden = true;
   $('attention-more').hidden = true;
+  $('not-arrived-filter').hidden = true;
 }
 
 function attentionLookup() {
@@ -18,6 +19,9 @@ function attentionLookup() {
 }
 
 function renderAttention() {
+  const arrivalActive = !!attentionData?.arrival_check_active;
+  $('not-arrived-filter').hidden = !arrivalActive;
+  if (!arrivalActive && filter === 'not-arrived') setRosterFilter('all');
   const items = attentionData?.items || [];
   const shown = attentionExpanded ? items : items.slice(0, ATTENTION_PREVIEW);
   const open = items.filter(entry => entry.tone !== 'info').length;

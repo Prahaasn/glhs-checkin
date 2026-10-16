@@ -38,3 +38,4 @@ jobs:
       - run: node --check app/static/setup.js
       - run: node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs tests/test_setup_ui.cjs tests/test_station_ui.cjs
       - run: sh -n 'Open in Claude.command'
+      - run: sh -n 'Start local app.command'

@@ -1,56 +1,113 @@
-# Supabase connection, later
+# Local app with a Supabase database
 
-Supabase is PostgreSQL hosting here. SQLAlchemy connects from the Python server; the browser never receives a database password or Supabase service key. Hosting the database does not host this Python app.
+The Python server stays on this Mac at http://127.0.0.1:8317. SQLAlchemy connects
+from that server to Supabase PostgreSQL; browsers receive app sessions, never a
+database password or service key. The Mac and its internet connection must stay
+on for the app to work. This configuration listens only on loopback.
 
-1. Create a school-approved Supabase project when ready. Do not upload real staff data during the local demo.
-2. Copy a direct connection or **session pooler** URI from Connect. The session pooler works where direct IPv6 is unavailable. Use the psycopg driver prefix `postgresql+psycopg://` and enforce SSL via `?sslmode=require`. URL-encode special characters in the password. Put the complete URL in local `.env` as `DATABASE_URL`; never in source control. Use only the actual project-provided connection details.
-3. This app uses the private `school_checkin` schema via PostgreSQL `search_path`. Never add that schema to the Supabase Data API's exposed schemas. Run explicit provisioning:
+## Connection
 
-   ```sh
-   uv run --env-file .env python -m app.setup init-postgres
-   ```
+Keep the three distinct access keys in the ignored, private `.env`. Add a
+`DATABASE_URL` using the **session pooler** details shown in Supabase Connect.
+Use the `postgresql+psycopg://` driver and the dedicated app login, not the
+project's `postgres` account. The pooler username is `APP_ROLE.PROJECT_REF`.
+Session pooling supports this persistent Python server and IPv4 connections.
 
-   This creates the initial tables and revokes access from PUBLIC, anon, and authenticated. Schema changes after initial provisioning need explicit reviewed migrations; `create_all` does not upgrade existing tables. Production should use a dedicated restricted database role for the application; provisioning should use a separate role.
-4. Run the Python app with that URL; register fictional teachers again. This does **not** migrate an existing SQLite roster/history automatically. Retain the local database until a separately tested migration is complete.
-5. Before using real staff, verify HTTPS, role isolation, the API access boundaries, private schema exposure, concurrent scans, idempotent retries, backups/restores, and both physical scanners. Current verification covers SQLite and local PostgreSQL 16; no hosted Supabase project has been connected or provisioned. If upgrading a prior pilot database, review and create the additive `office_users` and `office_sessions` tables before starting the new version; this change does not rewrite teacher records.
+Download the server root certificate from **Database → Settings → SSL
+configuration → Download certificate**. Store it locally, then use both
+`sslmode=verify-full` and `sslrootcert` so the connection verifies the server's
+identity. URL-encode the password and certificate path as URI components.
 
-For an existing PostgreSQL pilot, absence coverage requires the reviewed
-[additive migration](migrations/2026-10-07-absence-coverage.sql) before running
-the new application. Take a database backup, review the two new tables and
-grants, and apply the SQL with the provisioning role in a transaction. It leaves
-existing roster, scan events, and sessions intact; it does not grant the
-application role new access automatically. Grant that restricted role only the
-required table and sequence privileges through the school's provisioning
-process. Keep school_checkin outside the exposed Data API schemas. Hosted
-Supabase execution remains unverified; CI verifies the migration on PostgreSQL
-16 with existing attendance records.
+```dotenv
+DATABASE_URL=postgresql+psycopg://APP_ROLE.PROJECT_REF:ENCODED_PASSWORD@POOLER_HOST:5432/postgres?sslmode=verify-full&sslrootcert=ENCODED_ABSOLUTE_CERT_PATH&connect_timeout=10
+ALLOWED_HOSTS=127.0.0.1,localhost,[::1]
+```
 
-Multi-day plans then require the reviewed
-[series migration](migrations/2026-10-08-absence-series.sql), which adds one
-nullable `series_id` column and index to `teacher_absences`. Apply migrations in
-filename order. Existing single-day entries keep a null series and work as before.
-CI applies both migrations in order to a database with existing attendance.
+Keep `.env` readable only by its owner (`chmod 600 .env`). Use the actual
+project-provided host, region and certificate. Never commit credentials or put
+this URL in frontend JavaScript. The app already selects the private
+`school_checkin` schema, disables automatic prepared statements for pooler
+compatibility, and checks pooled connections before reuse.
 
-The setup checklist and batch badges then require the reviewed
-[badge-date migration](migrations/2026-10-11-badge-issued-at.sql), which adds one
-nullable `badge_issued_at` column to `teachers` and fills it with the creation
-time for staff added on the office screen or in a demo, who received a usable
-badge then. Imported directory staff (`DIR-`) show "no badge on record" until the
-office issues one; any badge they were given later keeps working until then. CI
-applies all three migrations in order.
+Start or restart from the configured checkout:
 
-Fresh provisioning through init-postgres creates all model tables. SQLite
-locally creates missing tables on startup and adds the nullable `series_id`
-column to an earlier local file. PostgreSQL never upgrades columns automatically.
-To roll back the app, retain the added tables, column, and coverage history and
-revert the application commit; the earlier version ignores `series_id`.
+```sh
+uv sync --locked
+./'Start local app.command'
+```
 
-Sources researched for this design:
+The launcher loads `.env` and binds to `127.0.0.1:8317`. Stop it with Ctrl+C in
+its terminal before starting another copy. Set `GLHS_PORT` if that port is busy.
+Office accounts and station keys work as described in the README. No cloud app
+hosting is needed for this configuration.
 
-- [Supabase: Using SQLAlchemy](https://supabase.com/docs/guides/troubleshooting/using-sqlalchemy-with-supabase-FUqebT)
-- [Supabase: Connect to your database](https://supabase.com/docs/guides/database/connecting-to-postgres)
-- [SQLAlchemy PostgreSQL dialect](https://docs.sqlalchemy.org/en/20/dialects/postgresql.html)
-- [Zebra USB device types](https://docs.zebra.com/us/en/scanners/general/sm72-ig/usb-interface/usb-parameter-defaults/usb-device-type-.html)
-- [Zebra Enter suffix](https://docs.zebra.com/us/en/scanners/general/sm72-ig/user-preferences-and-miscellaneous-options/miscellaneous-scanner-parameters/enter-key.html)
+## Fresh database provisioning
 
-The Zebra examples document the connection approach; use the actual scanner's manual rather than blindly scanning configuration barcodes for a different model.
+The reviewed [initial provisioning SQL](provisioning/20261016162205_hosted_initial_private_schema.sql)
+creates all seven current model tables, indexes, a restricted `glhs_checkin_app`
+role, grants and RLS policies. It fails if that schema or role already exists.
+Apply it once with a separate provisioning account, in one transaction. It is
+separate from `docs/migrations/`, which contains upgrades for existing pilots.
+
+The new role starts with `NOLOGIN`. Enable its login and assign a strong generated
+password privately through the provisioning connection; keep passwords out of
+SQL migration history and shell arguments. Use only that restricted role in the
+app's `.env`. Keep the provisioning credential out of the application process.
+The older `app.setup init-postgres` command creates tables but does not install
+these restricted-role grants or RLS policies; it is not a replacement for this
+provisioning file.
+
+The runtime role can read and update the app's operational state and append
+history. It cannot create tables, delete staff, or update/delete scan and absence
+audit history. RLS allows the trusted backend role; existing office/station
+permissions remain enforced by FastAPI. This app does not use Supabase Auth.
+`PUBLIC`, `anon`, and `authenticated` have no access to the private schema.
+Never add `school_checkin` to the Data API's exposed schemas.
+
+Changing `DATABASE_URL` does not copy a SQLite roster, history or office accounts.
+Back up the old `.env` and SQLite file first. Transfer named office accounts only
+through a controlled setup step; add staff and issue badges through the office
+workflow when ready. The demo command intentionally refuses PostgreSQL. Run
+rehearsals with `app.local_demo`, which uses a separate local SQLite database.
+
+## Existing pilot upgrades
+
+Do not apply fresh provisioning to an existing pilot. Back it up and review the
+additive SQL in filename order:
+
+- [Absence coverage](migrations/2026-10-07-absence-coverage.sql): adds planned
+  absences and their audit history; preserves roster, scans and sessions.
+- [Multi-day plans](migrations/2026-10-08-absence-series.sql): adds nullable
+  `series_id` and its index. Existing single-day plans retain null series.
+- [Badge issue dates](migrations/2026-10-11-badge-issued-at.sql): adds nullable
+  `badge_issued_at`; imported directory staff retain “no badge on record.”
+
+Apply upgrades with the provisioning role and review the app role's required
+grants. PostgreSQL never upgrades existing columns automatically. To roll back
+application code, retain the added tables, columns and history.
+
+## Verification and recovery
+
+Run the Python suite against SQLite and a **disposable local PostgreSQL 16**
+database ending in `_test`. Never set `TEST_DATABASE_URL` to Supabase. The
+provisioning regression verifies RLS, browser-role isolation, denied audit
+rewrites, office/station sessions, attendance retries and coverage writes under
+the restricted runtime role; its outer transaction rolls all setup back.
+
+On October 16, 2026, the local app was connected to the GLHS project, its private
+schema and certificate-verified session pooler. Live checks covered health,
+office/station authentication, office reads, station isolation and logout. The
+hosted staff roster/history were left empty; attendance writes were verified on
+the disposable local database. Physical scanners, printing and school approval
+remain before operational use.
+
+To return to the previous SQLite pilot, stop the app, restore its backed-up
+`.env`, and restart from the same checkout. Keep the hosted database intact:
+new Supabase records do not automatically copy back to SQLite. Once real records
+exist, plan and verify a data export before changing databases.
+
+Sources:
+
+- [Supabase connection methods and certificate verification](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase SQLAlchemy guidance](https://supabase.com/docs/guides/troubleshooting/using-sqlalchemy-with-supabase-FUqebT)
+- [Supabase API security](https://supabase.com/docs/guides/api/securing-your-api)

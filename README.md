@@ -2,7 +2,7 @@
 
 ![Backend checks](https://github.com/Prahaasn/glhs-checkin/actions/workflows/check.yml/badge.svg?branch=main)
 
-A local school front-office pilot: two barcode scanner stations, printable staff QR badges, and a simple office dashboard. Python **FastAPI + SQLAlchemy**, SQLite locally, PostgreSQL/Supabase later. All demo staff are fictional.
+A local school front-office pilot: two barcode scanner stations, printable staff QR badges, and a simple office dashboard. Python **FastAPI + SQLAlchemy**, SQLite or a private Supabase PostgreSQL database. All demo staff are fictional.
 
 For the prepared Claude project, start with [START-HERE.md](START-HERE.md),
 [working instructions](CLAUDE.md), and the [Claude handoff](docs/CLAUDE-HANDOFF.md).
@@ -12,6 +12,8 @@ For the prepared Claude project, start with [START-HERE.md](START-HERE.md),
 The backend owns teacher registration, QR badge lookup, station authentication, arrival/departure transactions, presence history, and CSV exports. Both scanner computers connect to this one API. See the [API reference](docs/API.md) for routes, request examples, and retry behavior.
 
 ## Run locally
+
+For the local server connected to Supabase, use the [connection and recovery guide](docs/SUPABASE.md) and double-click **Start local app.command** after configuring the private `.env`. The server stays on this Mac.
 
 For a fresh scanner rehearsal with eight fictional staff, zero scans, generated
 office credentials, and a printable Code128/QR badge sheet:

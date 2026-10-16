@@ -11,7 +11,7 @@ function showToast(message) {
 }
 
 function recordedStatus(person) {
-  if (person.presence === 'unrecorded') return 'Not recorded (no scan yet)';
+  if (person.presence === 'unrecorded') return 'No recorded status (no scan or correction yet)';
   return (person.presence === 'in' ? 'IN' : 'OUT') + ' since ' + dateTime(person.last_seen);
 }
 

@@ -3,6 +3,8 @@
 Everything here is read-only. Suggested fixes are actions the office still reviews and saves
 explicitly; nothing is checked out, corrected, or reassigned automatically.
 """
+import os
+import re
 from datetime import datetime, time as clock, timedelta
 from zoneinfo import ZoneInfo
 
@@ -10,7 +12,7 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.absences import day_label, school_today
+from app.absences import day_label
 from app.models import ScanEvent, Teacher, TeacherAbsence
 
 SCHOOL_ZONE = ZoneInfo("America/New_York")
@@ -51,9 +53,18 @@ def correct_action(teacher, label, reason=None):
 
 
 def register_attention(app, db, auth_admin):
+    cutoff_text = os.getenv("ARRIVAL_CUTOFF", "07:30")
+    try:
+        if not re.fullmatch(r"[0-9]{2}:[0-9]{2}", cutoff_text):
+            raise ValueError
+        arrival_cutoff = clock.fromisoformat(cutoff_text)
+    except ValueError:
+        raise RuntimeError("Set ARRIVAL_CUTOFF to a valid HH:MM time in America/New_York.") from None
+
     @app.get("/api/attention", dependencies=[Depends(auth_admin)])
     def attention(session: Session = Depends(db)):
-        today = school_today()
+        now = datetime.now(SCHOOL_ZONE)
+        today = now.date()
         start = day_start(today)
         staff = list(session.scalars(select(Teacher).where(Teacher.active == True).order_by(Teacher.name)))
         scanned, arrived = set(), {}
@@ -114,15 +125,21 @@ def register_attention(app, db, auth_admin):
             items.append(item("needs_cover_upcoming", "action",
                               f"{teacher.name} needs cover on {plural(len(days), 'upcoming school day')}", when + ".",
                               [cover_action(first)], teacher, first))
-        not_arrived = [] if today.weekday() >= 5 else [
+        # This gates the morning review only. Scans remain available all day, and any IN
+        # today satisfies arrival even if that person later leaves and returns.
+        arrival_check_active = today.weekday() < 5 and now.time() >= arrival_cutoff
+        not_arrived = [] if not arrival_check_active else [
             person.id for person in staff
             if person.id not in arrived and person.id not in planned_today and not person.inside]
         if not_arrived:
-            items.append(item("not_arrived", "info", f"{plural(len(not_arrived), 'staff member')} with no arrival recorded today",
-                              "Not planned out. Some may still arrive; anyone who is out needs an absence planned.",
+            label = arrival_cutoff.strftime("%I:%M %p").lstrip("0")
+            items.append(item("not_arrived", "info", f"{plural(len(not_arrived), 'staff member')} not checked in today",
+                              f"Not planned out. Morning review starts at {label} Eastern. "
+                              "Staff can still check in later; confirm an absence with the office.",
                               [{"type": "show_not_arrived", "label": "Show list"}], day=today))
         covered = sum(bool(absence.substitute_name) for absence, _ in todays)
         return {"today": today.isoformat(), "day_start": start, "items": items, "not_arrived": not_arrived,
+                "arrival_cutoff": cutoff_text, "arrival_check_active": arrival_check_active,
                 "planned_today": [{"teacher_pk": teacher.id, "absence_id": absence.id,
                                    "substitute_name": absence.substitute_name} for absence, teacher in todays],
                 "coverage": {"planned": len(todays), "covered": covered, "unassigned": len(todays) - covered}}

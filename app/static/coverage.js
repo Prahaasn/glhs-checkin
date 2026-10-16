@@ -84,7 +84,7 @@ function setCoverageView(view) {
 
 function dayRow(entry, bookings) {
   const status = entry.cancelled ? 'Cancelled' : entry.substitute_name ? 'Assigned' : 'Needs cover';
-  const current = entry.presence === 'unrecorded' ? 'Not recorded' : entry.presence === 'in' ? 'In' : 'Out';
+  const current = entry.presence === 'unrecorded' ? 'No recorded status' : entry.presence === 'in' ? 'In' : 'Out';
   const others = entry.cancelled || !entry.substitute_name ? [] :
     (bookings.get(personName(entry.substitute_name)) || []).filter(other => other.id !== entry.id);
   const warning = others.length ? '<small class="warning-text">Also covering ' + esc(others.map(other => other.name).join(', ')) + '</small>' : '';

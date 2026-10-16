@@ -10,7 +10,7 @@ const stale = {id:'stale_in:3::', kind:'stale_in', tone:'warning', title:'Taylor
 const gap = {id:'needs_cover_today:1:1:', kind:'needs_cover_today', tone:'action', title:'Alex Morgan needs cover today',
   detail:'Planned absence with no substitute assigned.', teacher_pk:1, absence_id:1, day:DAY,
   actions:[{type:'edit_cover', label:'Assign cover', absence_id:1, day:DAY}]};
-const missing = {id:'not_arrived:::' + DAY, kind:'not_arrived', tone:'info', title:'1 staff member with no arrival recorded today',
+const missing = {id:'not_arrived:::' + DAY, kind:'not_arrived', tone:'info', title:'1 staff member not checked in today',
   detail:'Not planned out.', actions:[{type:'show_not_arrived', label:'Show list'}]};
 const queue = {...attention, items:[gap, stale, missing], not_arrived:[2],
   planned_today:[{teacher_pk:1, absence_id:1, substitute_name:null}], coverage:{planned:1, covered:0, unassigned:1}};
@@ -45,6 +45,25 @@ test('an empty queue says all clear and a failed check is reported', async()=>{
   fail = true;
   await ui.context.refreshAttention();
   assert.match(ui.element('attention-list').innerHTML, /Could not check[\s\S]*Database temporarily unavailable/);
+});
+
+test('morning filter follows server cutoff and resets a selected view when the next day is too early', async()=>{
+  let data = {...attention, arrival_check_active:false};
+  const ui = overview({'/attention':()=>response(data)});
+  await ui.context.refreshAttention();
+  assert.equal(ui.element('not-arrived-filter').hidden, true);
+  assert.doesNotMatch(ui.element('attention-list').innerHTML, /not checked in today/);
+  data = queue;
+  await ui.context.refreshAttention();
+  assert.equal(ui.element('not-arrived-filter').hidden, false);
+  assert.match(ui.element('attention-list').innerHTML, /not checked in today/);
+  ui.context.setRosterFilter('not-arrived');
+  data = {...attention, arrival_check_active:false};
+  await ui.context.refreshAttention();
+  assert.equal(ui.element('not-arrived-filter').hidden, true);
+  assert.equal(ui.read('filter'), 'all');
+  ui.context.clearAttention();
+  assert.equal(ui.element('not-arrived-filter').hidden, true);
 });
 
 test('record OUT opens a prefilled correction and only the review saves it', async()=>{

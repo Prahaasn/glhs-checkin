@@ -83,6 +83,7 @@ class OfficeLoginInput(BaseModel):
 
 
 def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hosts=None):
+    """Build the shared API with SQLite or a bounded private PostgreSQL pool."""
     url = database_url or os.getenv("DATABASE_URL", "sqlite:///./data/checkin.db")
     admin = admin_key or os.getenv("ADMIN_KEY")
     stations = station_keys or {"front-1": os.getenv("STATION_1_KEY"), "front-2": os.getenv("STATION_2_KEY")}
@@ -98,6 +99,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     if sqlite and url == "sqlite:///./data/checkin.db":
         Path("data").mkdir(exist_ok=True)
     kwargs = {"connect_args": {"check_same_thread": False, "timeout": 15}} if sqlite else {
+        # Stay below the hosted role's ten connections, leaving two for recovery/setup.
+        "pool_size": 5, "max_overflow": 3, "pool_timeout": 10,
         "connect_args": {"options": "-csearch_path=school_checkin", "prepare_threshold": None}}
     engine = create_engine(url, pool_pre_ping=True, **kwargs)
     if sqlite:

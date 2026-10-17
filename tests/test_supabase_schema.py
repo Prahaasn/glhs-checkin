@@ -1,5 +1,7 @@
 """Exercise hosted grants in a transaction on the guarded local test database."""
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
+from threading import Event
 from uuid import uuid4
 
 import pytest
@@ -8,12 +10,14 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
+from app.main import create_app
 from app.models import Base, OfficeUser, ScanEvent, Teacher
 from app.security import hash_password
 from test_checkin import client
 
 
 def test_fresh_supabase_schema_is_private_and_runtime_cannot_rewrite_history(client, monkeypatch):
+    """Keep the hosted schema private while office and station workflows persist."""
     engine = client.app.state.engine
     if engine.dialect.name != "postgresql":
         pytest.skip("PostgreSQL roles and RLS require the local PostgreSQL test database")
@@ -88,3 +92,35 @@ def test_fresh_supabase_schema_is_private_and_runtime_cannot_rewrite_history(cli
                                      {"teacher": teacher["id"]}) == 2
         finally:
             transaction.rollback()
+
+
+def test_postgres_pool_waits_for_capacity_and_reserves_recovery_connections(client):
+    """Queue overlapping requests within eight connections, below the role's ten."""
+    if client.app.state.engine.dialect.name != "postgresql":
+        pytest.skip("The hosted connection budget applies to PostgreSQL")
+    engine = create_app(client.app.state.engine.url.render_as_string(hide_password=False),
+                        "pool-admin", {"front-1": "pool-one", "front-2": "pool-two"}).state.engine
+    held = []
+    attempting = Event()
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    def request_connection():
+        """Return a query result once another request releases its connection."""
+        attempting.set()
+        with engine.connect() as connection:
+            return connection.scalar(text("SELECT 1"))
+
+    try:
+        for _ in range(8):
+            held.append(engine.connect())
+        pending = executor.submit(request_connection)
+        assert attempting.wait(timeout=2)
+        with pytest.raises(TimeoutError):
+            pending.result(timeout=0.2)
+        held.pop().close()
+        assert pending.result(timeout=3) == 1
+    finally:
+        for connection in held:
+            connection.close()
+        executor.shutdown(wait=True)
+        engine.dispose()

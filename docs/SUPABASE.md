@@ -29,6 +29,14 @@ this URL in frontend JavaScript. The app already selects the private
 `school_checkin` schema, disables automatic prepared statements for pooler
 compatibility, and checks pooled connections before reuse.
 
+Run one Uvicorn worker for this pilot. Its PostgreSQL pool allows five persistent
+connections and three overflow connections: at most eight, leaving two of the
+runtime role's ten connections available for setup or recovery. Further requests
+wait for a connection for up to ten seconds; if capacity stays exhausted, the
+existing database-error handler returns a retryable 503. Retry a pending scan
+with its original request ID. Each additional server process has its own pool,
+so do not add workers without reviewing the shared database connection budget.
+
 Start or restart from the configured checkout:
 
 ```sh

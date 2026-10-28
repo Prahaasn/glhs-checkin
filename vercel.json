@@ -1,10 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "",
+  "framework": "fastapi",
+  "installCommand": "uv sync --locked --no-dev",
   "buildCommand": "",
-  "outputDirectory": "app/static",
-  "rewrites": [
-    { "source": "/static/:path*", "destination": "/:path*" }
-  ]
+  "outputDirectory": null,
+  "regions": ["iad1"]
 }

@@ -1,5 +1,7 @@
 *
 !vercel.json
+!pyproject.toml
+!uv.lock
 !app
-!app/static
-!app/static/**
+!app/**
+app/__pycache__/**

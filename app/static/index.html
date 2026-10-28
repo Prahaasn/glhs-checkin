@@ -322,6 +322,10 @@
 </div>
 <article class="panel kiosk-panel">
 <div class="scan-icon" aria-hidden="true">▦</div>
+<div class="scan-modes" role="group" aria-label="Choose sign in or sign out">
+<button id="scan-in" type="button" aria-pressed="true">Sign in</button>
+<button id="scan-out" type="button" aria-pressed="false">Sign out</button>
+</div>
 <h1 id="scan-title">Ready to scan</h1>
 <p id="scan-instruction">Scan a staff badge. The scanner sends Enter automatically.</p>
 <form id="scan-form">
@@ -331,6 +335,7 @@
 </form>
 <div id="scan-feedback" role="status" aria-live="polite">Waiting for a badge</div>
 <button id="retry" class="secondary" hidden>Retry the same scan</button>
+<small>Choose Sign in or Sign out, then scan. The selected mode stays active until you change it.</small>
 <small>Wait for an on-screen confirmation before scanning the next badge.</small>
 </article>
 </section>

@@ -14,8 +14,8 @@ const checklist = {...setup, remaining:2, staff:{active:2, inactive:1, demo:true
     help:[{text:'Print at Actual size / 100%.', command:null}], actions:[{type:'print_missing', label:'Print 1 badge'}]},
   {key:'office', status:'done', title:'Office logins', detail:'1 active office login.', lines:[], actions:[],
     help:[{text:'Run <this> on the server.', command:'uv run --env-file .env python -m app.setup add-user --username NAME'}]},
-  {key:'stations', status:'todo', title:'Scanner stations', detail:'Departure station is not signed in.', actions:[], help:[],
-    lines:['Arrival station: signed in until Sat Oct 11, 7:00 PM · no scans yet']}]};
+  {key:'stations', status:'todo', title:'Scanner stations', detail:'Station 2 is not signed in.', actions:[], help:[],
+    lines:['Station 1: signed in until Sat Oct 11, 7:00 PM · no scans yet']}]};
 const card = (id, name, teacher_id) => ({id, name, teacher_id, badge_code:'code-' + id, qr:['000', '010', '000'], code128:'11011'});
 const lastWrite = ui => ui.sent.filter(request => request.method !== 'GET').pop();
 const stepClick = (ui, key, action = 0) => ui.element('setup-steps').onclick({target:{closest:()=>({dataset:{setupStep:key, action:String(action)}})}});
@@ -33,7 +33,7 @@ test('checklist renders steps, escaped help commands, actions, and the remaining
   assert.match(html, /setup-step done[\s\S]*✓[\s\S]*Staff roster/);
   assert.match(html, /setup-step todo[\s\S]*Badges[\s\S]*To do[\s\S]*Print 1 badge/);
   assert.match(html, /Run &lt;this&gt; on the server\.<code>uv run --env-file \.env python -m app\.setup add-user/);
-  assert.match(html, /Arrival station: signed in until/);
+  assert.match(html, /Station 1: signed in until/);
   assert.equal(ui.element('setup-count').textContent, 2);
   assert.equal(ui.element('setup-count').hidden, false);
   assert.equal(ui.element('badge-summary').textContent, '1 active staff member has no badge on record.');

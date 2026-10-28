@@ -425,3 +425,16 @@ def test_oversized_numbers_are_rejected_instead_of_failing_the_server(client):
                      client.patch('/api/absences/1',headers=ADMIN,json={'version':1,'cancelled':True,'substitute_name':None,
                                                                          'scope':'following','versions':{str(huge):1}})):
         assert response.status_code==422 and response.json()['detail']=='Invalid request. Check the supplied fields.'
+
+
+@pytest.mark.parametrize("key, station", [("test-one", "front-1"), ("test-two", "front-2")])
+def test_each_station_session_records_both_directions(client, key, station):
+    t = teacher(client)
+    assert client.post('/api/session', json={"role": "station", "access_key": key}).status_code == 200
+    for direction in ("in", "out"):
+        result = client.post('/api/scans', json={"code": t['badge_code'], "direction": direction,
+                                               "request_id": str(uuid4())})
+        assert result.status_code == 200
+        assert result.json()['inside'] is (direction == "in")
+    events = client.get('/api/events', headers=ADMIN).json()
+    assert [(e['station'], e['direction']) for e in events] == [(station, 'out'), (station, 'in')]

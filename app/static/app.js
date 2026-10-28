@@ -5,7 +5,7 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const time = epoch => {if(!epoch)return 'No scans yet';const seen=new Date(epoch*1000);return seen.toDateString()===new Date().toDateString()?seen.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):seen.toLocaleString();};
 const dateTime = epoch => new Date(epoch * 1000).toLocaleString();
 const initials = name => name.split(' ').map(x => x[0]).slice(0,2).join('').toUpperCase();
-const stationLabel = station => ({'front-1':'Arrival station','front-2':'Departure station'}[station] || station);
+const stationLabel = station => ({'front-1':'Station 1','front-2':'Station 2'}[station] || station);
 // Activity days use this browser's midnight, matching the times shown in the table.
 const dayQuery = day => { if (!day) return ''; const start = new Date(day + 'T00:00:00'), next = new Date(start); next.setDate(start.getDate() + 1); return '?since=' + Math.floor(start / 1000) + '&until=' + Math.floor(next / 1000); };
 let scanResetTimer = null;
@@ -45,14 +45,16 @@ async function connect(identity) {
   $('login').hidden=true;$('workspace').hidden=false;$('sidebar').hidden=false;
   document.body.classList.toggle('station-view',role==='station');
   document.querySelector('nav').hidden=role==='station';
+  $('logout').textContent=role==='station'?'Lock station':'Sign out';
   $('signed-in-as').textContent=role==='station'?'':identity.display_name||'Office staff';
   document.querySelectorAll('.nav').forEach(b=>b.hidden=role==='station'?b.dataset.page!=='kiosk':b.dataset.page==='kiosk');
   if(role==='station') {
-    direction=stationName==='front-2'?'out':'in';
-    $('station-name').textContent=stationName==='front-2'?'Departure station':'Arrival station';
-    $('scan-title').textContent=direction==='in'?'Scan to check IN':'Scan to check OUT';
-    $('scan-instruction').textContent=direction==='in'?'Arriving staff scan their badge here.':'Departing staff scan their badge here.';
+    $('station-name').textContent=stationLabel(stationName);
     try { pending=JSON.parse(sessionStorage.getItem('pending:'+stationName)); } catch {pending=null;}
+    direction=pending?.direction==='out'?'out':'in';
+    renderScanMode();
+    $('retry').hidden=!pending;
+    if(!pending){$('scan-feedback').className='';$('scan-feedback').textContent='Waiting for a badge';}
     if(pending){$('retry').hidden=false;$('scan-feedback').textContent='Previous scan needs confirmation. Retry it before scanning another badge.';}
   }
   navigate(role==='admin'?'dashboard':'kiosk');
@@ -144,7 +146,27 @@ $('directory').onclick=e=>{const b=e.target.closest('button');if(!b)return;
    run:async()=>{await api('/teachers/'+person.id,{method:'PATCH'});showToast(`${person.name} was deactivated.`);refresh();}});
 };
 document.querySelectorAll('.export').forEach(b=>b.onclick=async()=>{try{const day=$('activity-day').value;const blob=await(await api('/export'+dayQuery(day))).blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='staff-checkins'+(day?'-'+day:'')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$('notice').textContent=error.message;$('notice').hidden=false;}});
-async function sendScan(){if(busy||role!=='station'||!pending)return;const pendingKey='pending:'+stationName;busy=true;clearTimeout(scanResetTimer);$('scan-code').disabled=true;$('retry').hidden=true;$('scan-feedback').className='';$('scan-feedback').textContent='Recording scan…';try{const result=await(await api('/scans',{method:'POST',body:JSON.stringify(pending)})).json();$('scan-feedback').className='success';$('scan-feedback').textContent=result.name+' · '+result.message+' · '+time(result.occurred_at);pending=null;sessionStorage.removeItem(pendingKey);clearTimeout(scanResetTimer);scanResetTimer=setTimeout(()=>{if(!pending&&!busy&&role==='station'){$('scan-feedback').className='';$('scan-feedback').textContent='Ready for the next badge';}},8000);}catch(error){$('scan-feedback').textContent=error.message+' — scan has not been confirmed.';$('scan-feedback').className='error';if(error.status && error.status<500){pending=null;sessionStorage.removeItem(pendingKey);if(error.status===401)$('login-error').textContent='This station was signed out, so the last scan was not recorded. Sign in and scan that badge again.';}else if(connected){$('retry').hidden=false;}}finally{busy=false;$('scan-code').disabled=false;if(!pending)$('scan-code').value='';$('scan-code').focus();}}
+function renderScanMode() {
+  for(const mode of ['in','out']) {
+    $('scan-'+mode).setAttribute('aria-pressed',String(direction===mode));
+    $('scan-'+mode).disabled=busy||Boolean(pending)||role!=='station';
+  }
+  $('scan-title').textContent=direction==='in'?'Scan to sign IN':'Scan to sign OUT';
+  $('scan-instruction').textContent=direction==='in'?'Arriving? Scan your badge to sign in.':'Leaving? Scan your badge to sign out.';
+}
+function setScanDirection(next) {
+  if(role!=='station'||busy||pending)return;
+  direction=next;
+  clearTimeout(scanResetTimer);
+  $('scan-code').value='';
+  $('scan-feedback').className='';
+  $('scan-feedback').textContent='Ready to sign '+direction.toUpperCase();
+  renderScanMode();
+  $('scan-code').focus();
+}
+$('scan-in').onclick=()=>setScanDirection('in');
+$('scan-out').onclick=()=>setScanDirection('out');
+async function sendScan(){if(busy||role!=='station'||!pending)return;const pendingKey='pending:'+stationName;busy=true;renderScanMode();clearTimeout(scanResetTimer);$('scan-code').disabled=true;$('retry').hidden=true;$('scan-feedback').className='';$('scan-feedback').textContent='Recording scan…';try{const result=await(await api('/scans',{method:'POST',body:JSON.stringify(pending)})).json();$('scan-feedback').className='success';$('scan-feedback').textContent=result.name+' · '+result.message+' · '+time(result.occurred_at);pending=null;sessionStorage.removeItem(pendingKey);clearTimeout(scanResetTimer);scanResetTimer=setTimeout(()=>{if(!pending&&!busy&&role==='station'){$('scan-feedback').className='';$('scan-feedback').textContent='Ready for the next badge';}},8000);}catch(error){$('scan-feedback').textContent=error.message+' — scan has not been confirmed.';$('scan-feedback').className='error';if(error.status && error.status<500){pending=null;sessionStorage.removeItem(pendingKey);if(error.status===401)$('login-error').textContent='This station was signed out, so the last scan was not recorded. Sign in and scan that badge again.';}else if(connected){$('retry').hidden=false;}}finally{busy=false;renderScanMode();$('scan-code').disabled=false;if(!pending)$('scan-code').value='';$('scan-code').focus();}}
 $('scan-form').onsubmit=e=>{e.preventDefault();if(busy||role!=='station')return;if(pending){$('scan-feedback').textContent='Retry the previous scan before scanning another badge.';return;}const code=$('scan-code').value.trim();if(!code)return;pending={code,direction,request_id:uuid()};sessionStorage.setItem('pending:'+stationName,JSON.stringify(pending));sendScan();};
 $('retry').onclick=sendScan;
 $('kiosk').addEventListener('click',e=>{if(role==='station' && !pending && !e.target.closest('button,input'))$('scan-code').focus();});

@@ -51,7 +51,7 @@ def render_badges(badges):
             document.drawCentredString(521, bottom + 14, "QR - 2D SCANNER")
         document.setFillColor(HexColor("#52685c"))
         document.setFont("Helvetica", 9)
-        document.drawString(32, 112, "Arrival records IN. Departure records OUT. Repeated IN stays IN.")
+        document.drawString(32, 112, "At either station, choose Sign in or Sign out before scanning. Repeated IN stays IN.")
         document.drawString(32, 97, "No scanner? Copy a card's token into the station input and press Enter.")
         document.drawString(32, 82, "These cards work only with this separate local demo database. They are not school badges.")
         document.drawRightString(580, 54, f"{page + 1} / {pages}")

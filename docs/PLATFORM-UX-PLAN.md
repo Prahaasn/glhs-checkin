@@ -27,10 +27,10 @@ but cannot read the office roster. Browser screens share the existing API.
 | --- | --- | --- |
 | Prepare | Confirm roster, logins, badges, stations, and network | Staff know how to start and recover |
 | Plan coverage | Record who is scheduled out and who covers them | Today's absences show assigned or unassigned substitutes |
-| Arrive | Staff scan at the arrival station | Confirmed scan appears on the office dashboard |
+| Arrive | Staff choose Sign in and scan at either station | Confirmed scan appears on the office dashboard |
 | Monitor | Search presence and coverage together | Unknown presence stays distinct from planned absence |
 | Handle exceptions | Correct a missed scan, replace a badge, change coverage | Explicit action, review, confirmation, and history |
-| Depart and review | Scan OUT; inspect activity and unresolved coverage | The office can explain the day's records |
+| Depart and review | Choose Sign out and scan at either station; inspect activity and unresolved coverage | The office can explain the day's records |
 
 Scheduling an absence does not create an attendance scan. A teacher can be
 scheduled out while recorded IN; the office should see both and resolve the

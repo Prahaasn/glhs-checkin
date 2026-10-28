@@ -1,6 +1,5 @@
 *
 !vercel.json
-!app/
-app/*
-!app/static/
+!app
+!app/static
 !app/static/**

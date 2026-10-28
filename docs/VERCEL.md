@@ -15,8 +15,8 @@ catch-all: `/api/...` must not return the login page with a misleading HTTP 200.
 The `.vercelignore` allowlist limits CLI uploads to the frontend and config.
 Do not add `.env`, database files, station keys, or passwords to the deployment.
 
-The first deployment is a standalone static project named `glhs-checkin` in the
-connected Vercel account. It does not automatically deploy future Git pushes.
+The frontend is available at https://glhs-checkin.vercel.app. It is a standalone
+static project named `glhs-checkin` under `prahaas-7509s-projects`. It does not automatically deploy future Git pushes.
 After review/merge, a Git integration can use the same configuration.
 
 ## Verify and connect

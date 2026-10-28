@@ -163,7 +163,7 @@ function badgeCardHtml(badge) {
     '<strong class="badge-name">' + esc(badge.name) + '</strong><span class="badge-id">' + esc(badge.teacher_id) + demo + '</span>' +
     '<svg class="badge-barcode" viewBox="0 0 ' + width + ' 1" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="Code 128 barcode">' +
     '<rect width="' + width + '" height="1" fill="#fff"/><path d="' + bars + '" fill="#000"/></svg>' +
-    '<small class="badge-hint">Scan at the arrival or departure station and wait for the on-screen confirmation.</small></div>' +
+    '<small class="badge-hint">Choose Sign in or Sign out at either station, scan, and wait for the on-screen confirmation.</small></div>' +
     '<svg class="badge-qr" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges" role="img" aria-label="QR code">' +
     '<rect width="' + size + '" height="' + size + '" fill="#fff"/><path d="' + qr + '" fill="#000"/></svg></article>';
 }

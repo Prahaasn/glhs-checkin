@@ -15,7 +15,7 @@ from app.attention import day_start, moment, plural
 from app.models import AccessSession, OfficeUser, ScanEvent, Teacher
 
 LOOPBACK = {"127.0.0.1", "localhost", "[::1]", "::1", "testserver"}
-STATION_LABELS = {"front-1": "Arrival station", "front-2": "Departure station"}
+STATION_LABELS = {"front-1": "Station 1", "front-2": "Station 2"}
 
 
 def step(key, status, title, detail, actions=(), lines=(), help=()):
@@ -100,7 +100,7 @@ def register_readiness(app, db, auth_admin, stations, allowed_hosts):
         waiting = [row["label"] for row in station_rows if not row["signed_in_until"]]
         station_help = [tip("On each scanner computer, open this server's address in a browser."),
                         tip("Choose Scanner station and enter that computer's key from the server's .env file: "
-                            "STATION_1_KEY for arrivals, STATION_2_KEY for departures."),
+                            "STATION_1_KEY for Station 1, STATION_2_KEY for Station 2. Both can sign staff in or out."),
                         tip("Set the USB scanner to keyboard (HID) mode with an Enter suffix, using its own manual.")]
         if not lan:
             station_help.append(tip("On one computer, open the office at 127.0.0.1 and the station at localhost so their sign-ins stay separate."))
@@ -111,11 +111,11 @@ def register_readiness(app, db, auth_admin, stations, allowed_hosts):
 
         untested = [row["label"] for row in station_rows if not row["scanned_today"]]
         steps.append(step("test_scan", "todo" if untested else "done", "Scans today",
-                          ("No scan recorded today at the " + " or the ".join(label.lower() for label in untested) + ".")
+                          ("No scan recorded today at " + " or ".join(untested) + ".")
                           if untested else "Both stations recorded a scan today.",
                           [{"type": "page", "page": "dashboard", "label": "Check Overview"}],
-                          help=[tip("Click the badge box at the arrival station, scan a badge, and wait for the on-screen confirmation."),
-                                tip("Scan the same badge at the departure station."),
+                          help=[tip("At each station, choose Sign in, scan a badge, and wait for the on-screen confirmation."),
+                                tip("Choose Sign out on the same screen and scan the same badge again."),
                                 tip("Both scans should appear under Latest scans. A scanner beep alone does not mean the scan was saved.")]))
 
         if https:

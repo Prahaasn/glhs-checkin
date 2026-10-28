@@ -165,7 +165,7 @@ def test_checklist_follows_logins_staff_station_sign_ins_and_scans_today(client)
     assert steps["test_scan"]["status"] == "todo"
     scan(client, person["badge_code"], "in", ONE)
     steps = setup(client)[1]
-    assert steps["test_scan"]["detail"] == "No scan recorded today at the departure station."
+    assert steps["test_scan"]["detail"] == "No scan recorded today at Station 2."
     scan(client, person["badge_code"], "out", TWO)
     data, steps = setup(client)
     assert steps["test_scan"]["status"] == "done" and data["remaining"] == 0

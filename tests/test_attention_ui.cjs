@@ -184,7 +184,7 @@ test('activity filters by type and loads a chosen day', async()=>{
   await ui.context.refresh();
   const request = ui.sent.filter(item => item.route === '/events').pop();
   assert.match(request.url, /since=\d+&until=\d+/);
-  assert.match(ui.element('event-table').innerHTML, /Arrival station/);
+  assert.match(ui.element('event-table').innerHTML, /Station 1/);
   ui.element('activity-kind').value = 'corrections';
   ui.context.renderActivity();
   assert.match(ui.element('event-table').innerHTML, /Corrected to out[\s\S]*Missed departure scan/);

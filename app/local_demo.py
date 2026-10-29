@@ -81,10 +81,10 @@ Eight fictional staff start as Not recorded. These cards work only with this dem
 
 1. Run start.command to start the server.
 2. Office dashboard: http://127.0.0.1:{port}/ . Choose Office staff; use office-login.txt locally.
-3. Scanner station: http://localhost:{port}/ . Choose Scanner station; locally copy STATION_1_KEY from demo.env for arrivals, or STATION_2_KEY for departures.
+3. Scanner station: http://localhost:{port}/ . Choose Scanner station; locally copy STATION_1_KEY or STATION_2_KEY from demo.env. Either station can sign staff in or out.
 4. Print staff-badges.pdf at Actual size / 100%. Each Code128 barcode and QR code encode the same badge token.
 5. Set a USB scanner to keyboard mode with an Enter suffix. Click the badge input, scan, and wait for confirmation.
-6. Repeat arrival scans keep someone IN. Sign out of the station, use the departure key, and scan the same card OUT.
+6. Choose Sign in and scan a card. Repeat scans keep someone IN. Click Sign out on the same screen and scan the same card OUT. Lock station ends the scanner login.
 
 Without a scanner, paste a card's token into the station input and press Enter. A phone camera alone does not send scans to this app.
 

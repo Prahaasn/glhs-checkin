@@ -1,5 +1,6 @@
 *
 !vercel.json
+!index.py
 !pyproject.toml
 !uv.lock
 !app

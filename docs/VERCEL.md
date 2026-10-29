@@ -8,7 +8,10 @@ Mac does not need to run for this hosted configuration to work.
 
 ## Deployment configuration
 
-`pyproject.toml` selects `app.hosted:app`. The hosted entrypoint refuses SQLite,
+`vercel.json` explicitly builds `index.py` with the Vercel Python runtime and
+routes requests to that ASGI entrypoint, which imports `app.hosted:app`. This
+avoids the prior project settings that produced an empty static build.
+The hosted entrypoint refuses SQLite,
 requires `sslmode=verify-full`, validates the database CA certificate, and writes
 that public certificate to a temporary runtime file. It then uses the existing
 app factory, including its production key validation and host allowlist.
@@ -34,8 +37,8 @@ vercel deploy --prod --skip-domain --scope prahaas-7509s-projects
 vercel promote DEPLOYMENT_URL --scope prahaas-7509s-projects
 ```
 
-Vercel instances use one persistent database connection plus one overflow
-connection; office sign-in briefly needs two sessions. Supabase transaction
+Vercel instances use one persistent database connection with no overflow. Office
+sign-in releases its lookup connection before opening its session-write transaction. Supabase transaction
 pooling releases database connections after each transaction. Prepared statements
 remain disabled. The role's global ten-connection limit remains intact; saturation
 returns a retryable 503. This is different from the local single-process

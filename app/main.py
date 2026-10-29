@@ -101,9 +101,9 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
     serverless = os.getenv("VERCEL") == "1"
     kwargs = {"connect_args": {"check_same_thread": False, "timeout": 15}} if sqlite else {
         # Stay below the hosted role's ten connections, leaving two for recovery/setup.
-        # Vercel instances share Supabase's transaction pooler. Keep each small;
-        # office login briefly needs a second connection while issuing its session.
-        "pool_size": 1 if serverless else 5, "max_overflow": 1 if serverless else 3, "pool_timeout": 10,
+        # Vercel instances share Supabase's transaction pooler. Queue requests
+        # on one connection per instance rather than keeping many idle sockets.
+        "pool_size": 1 if serverless else 5, "max_overflow": 0 if serverless else 3, "pool_timeout": 10,
         "connect_args": {"options": "-csearch_path=school_checkin", "prepare_threshold": None}}
     engine = create_engine(url, pool_pre_ping=True, **kwargs)
     if sqlite:
@@ -252,7 +252,8 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
             if not user or not user.active or not valid:
                 limiter.failed(address)
                 raise HTTPException(401, "Username or password not recognized.")
-            return issue_session(request, "admin", user=user)
+        # Release the lookup connection before opening the session-write transaction.
+        return issue_session(request, "admin", user=user)
 
     @app.get("/api/session")
     def current_session(request: Request):

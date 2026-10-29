@@ -2,7 +2,8 @@
 
 Open https://glhs-checkin.vercel.app on each Windows scanner computer or office
 computer. Vercel serves the existing FastAPI app, browser screens, and API at the
-same HTTPS origin. Supabase stores the private `school_checkin` database. The
+same HTTPS origin. Supabase stores the private `school_checkin` database in `GLHS_Teacher_CheckIn_Out_System` (`lfvpcvhxuaskrhfwbepk`),
+under `afoxball's Org`, as confirmed in the Supabase browser dashboard. The
 Mac does not need to run for this hosted configuration to work.
 
 ## Deployment configuration
@@ -44,7 +45,7 @@ The role's provisioned `search_path` is `school_checkin`.
 ## Sign-in and verification
 
 Office staff use a named username and password. Each scanner uses its own station
-key. Station 1 records arrivals and station 2 records departures in this revision.
+key. Either scanner station can select Sign in or Sign out before scanning.
 The office and scanner sessions use HttpOnly, Secure, SameSite=Strict cookies
 restricted to `/api`. Server-side sessions persist in Supabase between invocations.
 
@@ -59,7 +60,8 @@ Physical scanner/print testing and school approval remain before operational use
 This is a connected pilot, not a claim of a completed school rollout. Failure
 rate limits are per warm Python instance, not a distributed account lockout.
 Observe latency and database capacity under the actual two-station workload.
-The app has no automatic hosted backup setup or school holiday calendar.
+Supabase showed a recent scheduled backup on October 29, 2026. Restore ownership
+and retention still need school agreement. There is no school holiday calendar.
 
 If a deployment is faulty, promote a previous verified deployment. Promoting the
 initial frontend-only deployment restores the login screen but disables its API.

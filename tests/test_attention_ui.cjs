@@ -183,7 +183,7 @@ test('activity filters by type and loads a chosen day', async()=>{
   ui.element('activity-day').value = '2026-10-06';
   await ui.context.refresh();
   const request = ui.sent.filter(item => item.route === '/events').pop();
-  assert.match(request.url, /since=\d+&until=\d+/);
+  assert.equal(request.url, '/api/events?school_day=2026-10-06');
   assert.match(ui.element('event-table').innerHTML, /Station 1/);
   ui.element('activity-kind').value = 'corrections';
   ui.context.renderActivity();

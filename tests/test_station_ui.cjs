@@ -107,3 +107,34 @@ test('a definitive rejected badge releases the mode buttons', async()=>{
   ui.element('scan-out').onclick();
   assert.equal(ui.read('direction'),'out');
 });
+
+test('a delayed scan response after lock leaves the next station’s screen alone', async () => {
+  const held = deferred();
+  const ui = boot({'/scans': () => held.promise});
+  await ui.context.connect({role:'station', station:'front-1'});
+  ui.element('scan-code').value = 'first-badge';
+  ui.element('scan-form').onsubmit({preventDefault(){}});
+  ui.context.clearLocal();
+  await ui.context.connect({role:'station', station:'front-2'});
+  ui.element('scan-out').onclick();
+  held.resolve(response({name:'Previous teacher', message:'Checked in', occurred_at:1}));
+  await flush();
+  assert.equal(ui.read('stationName'), 'front-2');
+  assert.equal(ui.element('scan-feedback').textContent, 'Ready to sign OUT');
+  assert.ok(ui.stored.has('pending:front-1'));
+});
+
+test('workspace chooser requires only the selected credentials and clears hidden passwords', () => {
+  const ui = boot();
+  ui.element('password').value = 'fictional-password';
+  ui.element('station-role').onclick();
+  assert.equal(ui.element('access-key').required, true);
+  assert.equal(ui.element('office-fields').hidden, true);
+  assert.equal(ui.element('password').required, false);
+  assert.equal(ui.element('password').value, '');
+  ui.element('access-key').value = 'fictional-key';
+  ui.element('office-role').onclick();
+  assert.equal(ui.element('station-fields').hidden, true);
+  assert.equal(ui.element('access-key').value, '');
+  assert.equal(ui.element('username').required, true);
+});

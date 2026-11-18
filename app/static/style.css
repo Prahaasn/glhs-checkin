@@ -42,7 +42,7 @@ th,td{padding:13px 21px}td{border-bottom:1px solid #edf1ed;font-size:13px}tr:las
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:12px 20px;color:var(--muted);font-size:12px}.pager button{padding:7px 11px;font-size:11px}
 .activity-item{display:flex;align-items:flex-start;gap:11px;border-top:1px solid var(--line);padding:13px 20px}.activity-item strong{font-size:13px}.activity-item p,.activity-item small{display:block;margin:1px 0;font-size:11px}.activity>.text-button{margin:8px 20px 12px}.empty{padding:24px;color:var(--muted);font-size:13px}
 .snapshot{margin-top:18px;color:var(--muted);font-size:12px}.snapshot summary{cursor:pointer;color:var(--green);font-weight:650}.snapshot label{display:inline-flex;align-items:center;gap:9px;margin:13px 14px 0 0}.safety-note{font-size:12px;margin-top:16px}
-.login{max-width:430px;margin:70px auto 35px;padding:35px}.login-mark{width:47px;height:47px;font-size:27px;margin-bottom:25px}.login h1{font-size:37px}.login form{display:grid;gap:17px;margin:25px 0 15px}.login label,#office-fields,#station-fields{display:grid;gap:7px}.login label{font-size:12px;font-weight:650;color:#496057}.login .primary{margin-top:4px}.login small{font-size:11px}.login #login-error{color:var(--red);font-size:13px}
+
 label{font-size:12px;color:#52685c}.inline-form{display:flex;gap:13px;align-items:end;padding:23px;flex-wrap:wrap}.inline-form label{display:grid;gap:7px;flex:1;min-width:180px}.panel>p{padding:0 22px;font-size:12px}#directory-search{max-width:330px}
 .directory-action{margin-right:10px}.station-top{display:flex;justify-content:space-between;margin:3px 0 18px;color:var(--muted)}
 .kiosk-panel{max-width:720px;margin:0 auto;text-align:center;padding:clamp(25px,5vw,60px)}.scan-icon{font-size:62px;color:var(--green);line-height:1}.kiosk-panel h1{margin:18px 0 8px}.kiosk-panel p{font-size:16px}.kiosk-panel form{display:flex;gap:9px;max-width:470px;margin:26px auto}.kiosk-panel input{flex:1}.kiosk-panel small{display:block;margin-top:20px}
@@ -110,6 +110,128 @@ dialog .print-list label{display:grid;grid-template-columns:auto minmax(0,1fr) a
 .print-list input{width:17px;height:17px;margin:0}.print-list span small{display:block;font-size:11px}.print-list label>small{font-size:11px;text-align:right}
 .print-root{display:none}
 @media(max-width:720px){.setup-step{padding:15px 14px;gap:12px}.badge-card{flex-direction:column;align-items:flex-start}.badge-qr{width:96px;height:96px}#badge-preview{padding:0 14px 14px}.badge-sheet-panel>.form-warning{margin:0 14px 14px}#teachers .page-title{flex-wrap:wrap}.print-list{max-height:26vh}}
+
+/* The entry, scanner and desk share the school's forest-and-lime palette. */
+:root {
+  --forest: #113e35;
+  --lime: #d9f497;
+  --green: #175743;
+  --green-light: #e5f2df;
+  --bg: #f6f7f1;
+  --ink: #1a3029;
+  --muted: #52665c;
+  --line: #d8e0d6;
+}
+body { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+h1, .entry-form h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.045em; }
+h1 { font-size: clamp(38px, 4vw, 59px); }
+header { font-weight: 650; color: var(--ink); gap: 1rem; }
+#clock { text-align: right; font-variant-numeric: tabular-nums; }
+aside { background: var(--forest); color: white; border-right: none; }
+.brand { padding-bottom: 35px; }
+.brand small, aside .sidebar-bottom span { color: #d9e7dc; }
+.brand-mark, .school-seal {
+  font: italic bold 25px Georgia, serif;
+  background: var(--lime); color: var(--forest); border-radius: 3px 3px 45% 45%;
+}
+.nav, aside .text-button { color: #e3ede3; }
+.nav:hover, .nav.active { background: #29594b; color: white; }
+.nav.active { box-shadow: inset 3px 0 var(--lime); }
+.sidebar-bottom { border-color: #497063; }
+.entry {
+  display: grid; grid-template-columns: 1fr 1fr; max-width: 990px; margin: clamp(32px,8vh,86px) auto;
+  border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: white;
+  box-shadow: 0 15px 50px #123b2410;
+}
+.entry-cover { isolation: isolate; position: relative; overflow: hidden; padding: clamp(30px,5vw,62px); background: var(--forest); color: #fff; min-height: 480px; }
+.school-seal { display: grid; place-items: center; width: 50px; height: 56px; font-size: 28px; }
+.entry-cover h1 { font-size: clamp(64px,7.6vw,108px); line-height: .89; margin: 46px 0 20px; }
+.entry-cover em { color: var(--lime); font-weight: normal; }
+.entry-cover p { color: #dcebdd; font-size: 14px; font-weight: 600; }
+.campus { position: absolute; z-index: -1; inset: auto -7% -68px 12%; height: 190px; display: flex; align-items: end; transform: skewY(-12deg); }
+.campus i { flex: 1; height: 88%; border-radius: 100px 100px 0 0; border: 1px solid #82a880; background: repeating-linear-gradient(90deg,#265849 0 8px,#4e7863 8px 9px); }
+.campus i:nth-child(2) { height: 70%; }.campus i:nth-child(3) { height: 95%; }.campus i:last-child { height: 120%; }
+.entry-form { align-self: center; padding: clamp(24px,4.5vw,60px); }
+.entry-form h2 { font-size: 42px; margin: 0 0 20px; line-height: 1.05; }
+.entry-form p { font-size: 14px; }
+.role-switch { display: flex; padding: 4px; border-radius: 10px; background: #ebefe8; margin-bottom: 15px; }
+.role-switch button { flex: 1; min-height: 42px; background: transparent; color: var(--muted); border: 0; border-radius: 7px; font-weight: 650; }
+.role-switch [aria-pressed="true"] { color: var(--forest); background: white; box-shadow: 0 1px 4px #17342524; }
+.entry-form form, .entry-form label, #office-fields, #station-fields { display: grid; gap: 8px; }
+.entry-form form, #office-fields { gap: 16px; }
+.entry-form label { font-weight: 650; }
+.entry-form input { font-size: 16px; width: 100%; }
+.entry-form .primary { min-height: 46px; }
+#login-error { margin: 0; color: var(--red); } #login-error:empty { display: none; }
+.page-title { align-items: center; }
+.roster-shortcut { position: relative; text-align: left; color: var(--ink); }
+.roster-shortcut::after { content: "↘"; position: absolute; right: 16px; bottom: 15px; font-size: 18px; }
+.roster-shortcut:hover { outline: 2px solid var(--green); outline-offset: -2px; }
+.roster-shortcut > span { font-weight: 650; font-size: 15px; }
+.roster-shortcut strong { margin: 8px 0; font-variant-numeric: tabular-nums; }
+.in-stat.roster-shortcut { background: var(--forest); color: #fff; }
+.in-stat.roster-shortcut small { color: #dae9d8; }
+.out-stat.roster-shortcut { background: #eaf0f0; }
+.unknown-stat.roster-shortcut { background: #f8f0df; }
+.roster-shortcut, .panel { border-radius: 12px; }
+.roster-shortcut { border-top-width: 1px; }
+.enrollment { padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.enrollment summary { cursor: pointer; font-weight: 650; color: var(--green); }
+.enrollment .inline-form { padding: 16px 0 0; }
+#teachers .filters { padding-top: 16px; }
+.coverage-toolbar, .activity-tools { background: white; padding: 15px 18px; border: 1px solid var(--line); border-radius: 12px; }
+.setup-step.done { border-left: 4px solid var(--green); }
+.setup-step.todo { border-left: 4px solid #b17e30; }
+.setup-step.warning { border-left: 4px solid var(--red); }
+.desk-rail { display: grid; gap: 16px; }
+.desk-rail .attention { margin: 0; }
+.desk-rail .panel-heading { align-items: flex-start; flex-wrap: wrap; }
+.desk-rail .attention-item { grid-template-columns: auto minmax(0, 1fr); }
+.desk-rail .attention-actions { grid-column: 2; justify-content: flex-start; }
+#workspace > #notice { margin-top: 18px; }
+.entry-cover h1 { font-size: clamp(64px, 7vw, 90px); }
+@media (min-width: 721px) and (max-width: 900px) {
+  .entry-cover { padding: 32px; }
+}
+
+th { color: var(--muted); text-transform: uppercase; }
+th, td { font-variant-numeric: tabular-nums; }
+.activity .avatar { border-radius: 9px; font-size: 16px; }
+.stats, .dashboard-grid { gap: 16px; }
+body.station-view aside { position: static; width: 100%; padding: 12px max(18px,5vw); display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+body.station-view .brand { padding: 0; } body.station-view .sidebar-bottom { margin: 0; border: none; padding: 0; }
+body.station-view main { margin: 0 auto; max-width: 1040px; }
+body.station-view header { height: 48px; }
+.station-top { max-width: 710px; margin: 0 auto 12px; align-items: center; font-weight: 600; }
+.kiosk-panel { max-width: 710px; padding: 0 0 24px; overflow: hidden; }
+.station-heading { padding: 30px 20px; background: var(--forest); color: white; }
+.station-heading p { color: #e3eddf; margin: 0; }
+.badge-symbol { width: 49px; height: 34px; margin: 0 auto; border: 4px solid var(--lime); border-radius: 5px;
+  background: repeating-linear-gradient(90deg,var(--lime) 0 2px,transparent 2px 5px); background-clip: content-box; padding: 5px; }
+.scan-modes button { min-height: 70px; }
+.scan-modes span { display: inline-block; margin-right: 5px; }
+#scan-out[aria-pressed="true"] { background: #354c67; border-color: #354c67; }
+#scan-feedback { margin: 12px 20px; min-height: 64px; background: #f0f3ec; color: var(--ink); }
+#scan-feedback.success { background: #e1f3c8; }
+.kiosk-panel small { margin: 10px 16px 0; }
+@media (max-width: 720px) {
+  .entry { grid-template-columns: 1fr; max-width: 480px; margin: 20px auto; }
+  .entry-cover { min-height: 0; padding: 22px 24px; }
+  .entry-cover h1 { font-size: 48px; line-height: 1.1; margin: 0 0 5px; }
+  .entry-cover br { display: none; } .entry-cover em::before { content: " "; }
+  .entry-cover p { margin: 0; } .entry-cover .school-seal { display: none; }
+  .campus { left: 70%; bottom: -100px; }
+  .brand { padding-bottom: 10px; }
+  .page-title { flex-wrap: wrap; } .page-title h1 { font-size: 36px; }
+  .stats, .dashboard-grid { gap: 8px; }
+  .roster-shortcut { align-self: stretch; padding: 13px 10px; }
+  .roster-shortcut::after { display: none; }
+  .roster-shortcut > span { display: block; font-size: 12px; }
+  .roster-shortcut small { font-size: 11px; }
+  .scan-modes, .kiosk-panel form { margin: 18px; max-width: none; }
+  .panel-heading { flex-wrap: wrap; }
+  #clock { font-size: 11px; }
+}
 @media print{
   @page{size:letter;margin:.5in}
   body.has-badge-sheet{background:#fff}

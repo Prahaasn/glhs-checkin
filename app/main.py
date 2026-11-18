@@ -5,6 +5,7 @@ import os
 import secrets
 import time
 from contextlib import asynccontextmanager
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
@@ -24,7 +25,7 @@ from app.models import AccessSession, Base, OfficeSession, OfficeUser, ScanEvent
 from app.security import (BodyLimitMiddleware, FailureLimiter, OptionalTimestamp, RowId, Timestamp,
                           hash_password, verify_password)
 from app.absences import register_absences
-from app.attention import register_attention
+from app.attention import day_start, register_attention
 from app.badges import badge_card, badge_hash, new_badge, register_badges
 from app.readiness import register_readiness
 
@@ -428,7 +429,12 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         qrcode.make(payload.code).save(buffer, format="PNG")
         return Response(buffer.getvalue(), media_type="image/png")
 
-    def events_query(session, since=None, until=None, limit=None):
+    def events_query(session, since=None, until=None, limit=None, school_day=None):
+        if school_day is not None:
+            if since is not None or until is not None or school_day == date.max:
+                raise HTTPException(422, "Choose one school day or a timestamp range.")
+            since = day_start(school_day)
+            until = day_start(school_day + timedelta(days=1))
         query = select(ScanEvent, Teacher).join(Teacher).order_by(ScanEvent.occurred_at.desc(), ScanEvent.id.desc())
         if since is not None:
             query = query.where(ScanEvent.occurred_at >= since)
@@ -449,11 +455,13 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
                 for e, t in entries]
 
     @app.get("/api/events", dependencies=[Depends(auth_admin)])
-    def events(since: OptionalTimestamp = None, until: OptionalTimestamp = None, session: Session = Depends(db)):
-        return events_query(session, since, until, 200)
+    def events(since: OptionalTimestamp = None, until: OptionalTimestamp = None,
+               school_day: date | None = None, session: Session = Depends(db)):
+        return events_query(session, since, until, 200, school_day)
 
     @app.get("/api/export", dependencies=[Depends(auth_admin)])
-    def export(since: OptionalTimestamp = None, until: OptionalTimestamp = None, session: Session = Depends(db)):
+    def export(since: OptionalTimestamp = None, until: OptionalTimestamp = None,
+               school_day: date | None = None, session: Session = Depends(db)):
         from datetime import datetime, timezone
         buffer = io.StringIO()
         writer = csv.writer(buffer)
@@ -461,7 +469,7 @@ def create_app(database_url=None, admin_key=None, station_keys=None, allowed_hos
         def safe(value):
             value = str(value or "")
             return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) else value
-        for e in events_query(session, since, until):
+        for e in events_query(session, since, until, school_day=school_day):
             writer.writerow([safe(e["teacher_id"]), safe(e["name"]), e["direction"], e["station"],
                              datetime.fromtimestamp(e["occurred_at"], timezone.utc).isoformat(), e["changed"], safe(e["reason"])])
         return Response(buffer.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="staff-checkins.csv"'})

@@ -29,7 +29,7 @@ Office browsers POST `/office-session` with a named `username` and `password`; s
 | GET | `/substitutes` | Office | Substitute names used on active plans in the last year, newest first |
 | GET | `/attention` | Office | Today's exceptions with suggested reviewed actions (read-only) |
 
-`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. Database IDs, timestamps, and versions must fit a 32-bit SQL integer (IDs and versions from 1, timestamps from 0, up to 2147483647); anything outside returns 422. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
+`/events` and `/export` accept optional `since` (inclusive) and `until` (exclusive) Unix timestamps. An office can instead pass `school_day=YYYY-MM-DD` to select one Eastern calendar day, including daylight-saving transitions. Database IDs, timestamps, and versions must fit a 32-bit SQL integer (IDs and versions from 1, timestamps from 0, up to 2147483647); anything outside returns 422. Database primary key `id` and school-provided `teacher_id` are different fields; path routes use the primary key. Teacher IDs are strings, so leading zeroes are preserved. Deactivating an office user in the database invalidates their existing cookie on the next request.
 
 ## Register a teacher
 

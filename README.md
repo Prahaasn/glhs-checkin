@@ -11,6 +11,12 @@ For the prepared Claude project, start with [START-HERE.md](START-HERE.md),
 
 The backend owns teacher registration, QR badge lookup, station authentication, arrival/departure transactions, presence history, and CSV exports. Both scanner computers connect to this one API. See the [API reference](docs/API.md) for routes, request examples, and retry behavior.
 
+## Hosted app
+
+Open https://glhs-checkin.vercel.app on Windows or another browser computer.
+Vercel runs the browser screens and Python API; Supabase stores the private
+database. See [hosting, sign-in, and recovery](docs/VERCEL.md).
+
 ## Run locally
 
 For the local server connected to Supabase, use the [connection and recovery guide](docs/SUPABASE.md) and double-click **Start local app.command** after configuring the private `.env`. The server stays on this Mac.
@@ -113,4 +119,4 @@ node --check app/static/setup.js
 node --test tests/test_coverage_ui.cjs tests/test_attention_ui.cjs tests/test_setup_ui.cjs tests/test_station_ui.cjs
 ```
 
-See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). This is a local pilot, not a deployed school system. Hardware scan/print testing and school approval remain before use with real staff.
+See [implementation plan](docs/PLAN.md), [Supabase setup](docs/SUPABASE.md), and [review packet](docs/REVIEW-PACKET.md). The hosted app is a supervised pilot, not a completed school rollout. Hardware scan/print testing and school approval remain before use with real staff.

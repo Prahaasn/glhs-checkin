@@ -35,79 +35,66 @@
 </aside>
 <main>
 <header>
-<span>Green Level High School · Staff presence</span>
+<span>Green Level High School</span>
 <span id="clock">
 </span>
 </header>
-<section id="login" class="login panel">
-  <div class="login-mark">G</div>
-<div class="eyebrow">GREEN LEVEL HIGH SCHOOL</div>
-<h1>Staff presence</h1>
-<p>Sign in to see who is recorded in, out, or not yet scanned.</p>
-  <form id="login-form">
-<label>Sign in as<select id="role">
-<option value="admin">Office staff</option>
-<option value="station">Scanner station</option>
-</select>
-</label>
-    <div id="office-fields">
-<label>Username<input id="username" autocomplete="username" required>
-</label>
-<label>Password<input type="password" id="password" autocomplete="current-password" required>
-</label>
-</div>
-    <div id="station-fields" hidden>
-<label>Station access key<input type="password" id="access-key" autocomplete="off">
-</label>
-</div>
-<button class="primary">Sign in</button>
-</form>
-  <p id="login-error" role="alert">
-</p>
-<small>Office logins are created by an administrator on the server.</small>
+<section id="login" class="entry" aria-labelledby="entry-title">
+  <div class="entry-cover">
+    <div class="school-seal" aria-hidden="true">GL</div>
+    <h1 id="entry-title">Staff<br><em>presence.</em></h1>
+    <p>Green Level High School</p>
+    <div class="campus" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="entry-form">
+    <h2>Sign in</h2>
+    <div class="role-switch" role="group" aria-label="Choose a workspace">
+      <button type="button" id="office-role" aria-pressed="true">Front office</button>
+      <button type="button" id="station-role" aria-pressed="false">Scanner station</button>
+    </div>
+    <p id="entry-help">Use your office account to view attendance and manage staff.</p>
+    <form id="login-form">
+      <input type="hidden" id="role" value="admin">
+      <div id="office-fields">
+        <label>Username<input id="username" autocomplete="username" required></label>
+        <label>Password<input type="password" id="password" autocomplete="current-password" required></label>
+      </div>
+      <div id="station-fields" hidden>
+        <label>Station access key<input type="password" id="access-key" autocomplete="off"></label>
+      </div>
+      <p id="login-error" role="alert"></p>
+      <button class="primary" id="entry-submit">Open front office</button>
+    </form>
+  </div>
 </section>
 <div id="workspace" hidden>
+  <div id="notice" role="status" aria-live="polite" hidden>
+</div>
+
 <section id="dashboard" class="page">
   <div class="page-title">
 <div>
-<div class="eyebrow">RECORDED STAFF STATUS</div>
-<h1>Who's in the building?</h1>
-<p>Search staff or choose a status. Updates every five seconds.</p>
+<div class="eyebrow">FRONT OFFICE</div>
+<h1>Attendance overview</h1>
+<p>Recorded arrivals and departures across both stations.</p>
 </div>
-<span class="live-pill" id="live-status">● Live</span>
+<span class="live-pill" id="live-status">Connecting…</span>
 </div>
   <div id="demo-banner" class="demo-banner" hidden>
 <strong>Fictional demo</strong>
 <span>These names and scans are examples for trying the system.</span>
 </div>
-  <div id="notice" role="status" aria-live="polite" hidden>
-</div>
   <div class="stats">
-<article class="stat in-stat">
-<div>CHECKED IN</div>
-<strong id="in-count">0</strong>
-<small>Recorded as inside</small>
-</article>
-<article class="stat out-stat">
-<div>CHECKED OUT</div>
-<strong id="out-count">0</strong>
-<small>Recorded as outside</small>
-</article>
-<article class="stat unknown-stat">
-<div>NO RECORDED STATUS</div>
-<strong id="unknown-count">0</strong>
-<small>No scan or correction yet</small>
-</article>
+<button class="stat in-stat roster-shortcut" data-status="in" type="button">
+    <span>Checked in</span><strong id="in-count">—</strong><small>Last recorded on campus</small>
+  </button>
+<button class="stat out-stat roster-shortcut" data-status="out" type="button">
+    <span>Checked out</span><strong id="out-count">—</strong><small>Last recorded off campus</small>
+  </button>
+<button class="stat unknown-stat roster-shortcut" data-status="unrecorded" type="button">
+    <span>No recorded status</span><strong id="unknown-count">—</strong><small>Awaiting a first record</small>
+  </button>
   </div>
-  <article class="panel attention" aria-labelledby="attention-title">
-    <div class="panel-heading">
-      <div><h2 id="attention-title">Needs attention <span id="attention-count" class="count-badge" hidden></span></h2>
-        <p>Today's planned absences: <span id="coverage-summary-text">Loading coverage…</span></p></div>
-      <button class="secondary" data-page="coverage">Manage cover</button>
-    </div>
-    <ul id="attention-list" class="attention-list"><li class="empty">Checking today's records…</li></ul>
-    <button id="attention-more" class="text-button attention-more" hidden>Show all</button>
-  </article>
   <div class="dashboard-grid">
     <article id="roster-panel" class="panel roster-panel">
 <div class="panel-heading">
@@ -132,9 +119,9 @@
 <table>
 <thead>
 <tr>
-<th>STAFF MEMBER</th>
+<th>Staff member</th>
 <th>STATUS</th>
-<th>LAST SCAN</th>
+<th>Last record</th>
 <th><span class="sr-only">Actions</span></th>
 </tr>
 </thead>
@@ -149,21 +136,32 @@
 <button id="roster-next" class="secondary">Next</button>
 </div>
 </article>
+<div class="desk-rail">
+  <article class="panel attention" aria-labelledby="attention-title">
+    <div class="panel-heading">
+      <div><h2 id="attention-title">Needs attention <span id="attention-count" class="count-badge" hidden></span></h2>
+        <p>Today's planned absences: <span id="coverage-summary-text">Loading coverage…</span></p></div>
+      <button class="secondary" data-page="coverage">Manage cover</button>
+    </div>
+    <ul id="attention-list" class="attention-list"><li class="empty">Checking today's records…</li></ul>
+    <button id="attention-more" class="text-button attention-more" hidden>Show all</button>
+  </article>
     <article class="panel activity">
 <div class="panel-heading">
 <div>
 <h2>Latest scans</h2>
-<p>Recorded by the server</p>
+<p>Across both scanner stations and the front office</p>
 </div>
 </div>
 <div id="recent">
 </div>
 <button class="text-button" data-page="history">View all activity →</button>
 </article>
+</div>
   </div>
   <details class="snapshot">
 <summary>View an earlier time</summary>
-<label>Recorded status at <input type="datetime-local" id="as-of">
+<label>Recorded status at (device time) <input type="datetime-local" id="as-of">
 </label>
 <button id="live" class="text-button">Return to live</button>
 </details>
@@ -172,7 +170,7 @@
 <section id="teachers" class="page" hidden>
 <div class="page-title">
 <div>
-<div class="eyebrow">OFFICE SETUP</div>
+<div class="eyebrow">DIRECTORY</div>
 <h1>Staff & badges</h1>
 <p>Add staff, print badges in a batch, or replace a lost badge.</p>
 <p id="badge-summary" class="badge-summary"></p>
@@ -194,6 +192,7 @@
 <div id="badge-preview"></div>
 </section>
 <div class="panel">
+<details class="enrollment"><summary>Add a staff member</summary>
 <form id="teacher-form" class="inline-form">
 <label>Full name<input id="teacher-name" required maxlength="120" placeholder="e.g. Alex Morgan">
 </label>
@@ -201,6 +200,7 @@
 </label>
 <button class="primary">Add & create badge</button>
 </form>
+</details>
 <p id="teacher-message" role="status">
 </p>
 <div class="filters">
@@ -229,8 +229,8 @@
 </section>
 <section id="coverage" class="page" hidden>
   <div class="page-title">
-    <div><div class="eyebrow">DAILY STAFF COVERAGE</div><h1>Absences & cover</h1>
-      <p>Plan who's out, for how many school days, and who will cover. Recorded scan status is shown separately.</p></div>
+    <div><div class="eyebrow">SCHEDULING</div><h1>Absences & cover</h1>
+      <p>Schedule a staff absence and assign cover. The plan leaves attendance records unchanged.</p></div>
     <button id="coverage-add" class="primary">Plan absence</button>
   </div>
   <div class="coverage-toolbar">
@@ -254,7 +254,7 @@
     <article class="stat unknown-stat"><div>NEEDS COVER</div><strong id="coverage-unassigned">—</strong><small>Substitute not assigned yet</small></article>
   </div>
   <div id="coverage-day-panel" class="panel table-wrap">
-    <table><thead><tr><th>STAFF MEMBER</th><th>SUBSTITUTE</th><th>RECORDED NOW</th><th>LAST UPDATED</th><th>ACTIONS</th></tr></thead>
+    <table><thead><tr><th>Staff member</th><th>SUBSTITUTE</th><th>RECORDED NOW</th><th>LAST UPDATED</th><th>ACTIONS</th></tr></thead>
       <tbody id="coverage-rows"><tr><td colspan="5" class="empty">Loading planned absences…</td></tr></tbody>
     </table>
   </div>
@@ -271,9 +271,9 @@
 <section id="history" class="page" hidden>
 <div class="page-title">
 <div>
-<div class="eyebrow">AUDIT HISTORY</div>
+<div class="eyebrow">ATTENDANCE RECORDS</div>
 <h1>Activity</h1>
-<p>Scans, repeats, and office corrections. Up to 200 shown; export includes everything.</p>
+<p>Scans, repeats, and office corrections. Times follow the school clock. Export includes all records for the selected day.</p>
 </div>
 <button class="secondary export">Export CSV</button>
 </div>
@@ -285,7 +285,8 @@
 <option value="corrections">Office corrections</option>
 <option value="repeats">Repeat scans</option>
 </select>
-<label>Day <input id="activity-day" type="date"></label>
+<label>School day <input id="activity-day" type="date"></label>
+<button id="activity-today" class="secondary" type="button">Today</button>
 <button id="activity-clear" class="text-button">Show latest</button>
 <span id="activity-count" role="status"></span>
 </div>
@@ -293,7 +294,7 @@
 <table>
 <thead>
 <tr>
-<th>STAFF MEMBER</th>
+<th>Staff member</th>
 <th>ACTION</th>
 <th>STATION</th>
 <th>TIME</th>
@@ -312,7 +313,7 @@
     <span id="setup-sync" class="setup-sync">Waiting for server</span>
   </div>
   <ol id="setup-steps" class="setup-steps"><li class="empty">Checking setup…</li></ol>
-  <p class="safety-note">Office logins and station keys are created on the server by an administrator. This page never shows passwords or keys.</p>
+  <p class="safety-note">Contact your administrator for office logins and station keys.</p>
 </section>
 <section id="kiosk" class="page" hidden>
 <div class="station-top">
@@ -321,22 +322,23 @@
 </span>
 </div>
 <article class="panel kiosk-panel">
-<div class="scan-icon" aria-hidden="true">▦</div>
+<div class="station-heading"><div class="badge-symbol" aria-hidden="true"></div>
+<h1 id="scan-title">Scan your badge</h1>
+<p id="scan-instruction">Choose your direction, then scan.</p></div>
 <div class="scan-modes" role="group" aria-label="Choose sign in or sign out">
-<button id="scan-in" type="button" aria-pressed="true">Sign in</button>
-<button id="scan-out" type="button" aria-pressed="false">Sign out</button>
+<button id="scan-in" type="button" aria-pressed="true"><span aria-hidden="true">↘</span> Check in</button>
+<button id="scan-out" type="button" aria-pressed="false"><span aria-hidden="true">↗</span> Check out</button>
 </div>
-<h1 id="scan-title">Ready to scan</h1>
-<p id="scan-instruction">Scan a staff badge. The scanner sends Enter automatically.</p>
+
 <form id="scan-form">
 <label class="sr-only" for="scan-code">Badge code</label>
-<input type="password" id="scan-code" autocomplete="off" spellcheck="false" placeholder="Scanner ready" maxlength="256">
+<input type="password" id="scan-code" autocomplete="off" spellcheck="false" placeholder="Scan or enter badge code" maxlength="256">
 <button class="primary">Record scan</button>
 </form>
 <div id="scan-feedback" role="status" aria-live="polite">Waiting for a badge</div>
 <button id="retry" class="secondary" hidden>Retry the same scan</button>
-<small>Choose Sign in or Sign out, then scan. The selected mode stays active until you change it.</small>
-<small>Wait for an on-screen confirmation before scanning the next badge.</small>
+<small>The selected direction stays active for the next teacher.</small>
+
 </article>
 </section>
 </div>
@@ -406,7 +408,7 @@
   </form>
 </dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-<footer>Green Level High School · Local pilot</footer>
+<footer>Green Level High School · Staff presence</footer>
 </main>
 <div id="print-root" class="print-root"></div>
 </body>

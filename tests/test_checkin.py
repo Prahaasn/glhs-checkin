@@ -438,3 +438,30 @@ def test_each_station_session_records_both_directions(client, key, station):
         assert result.json()['inside'] is (direction == "in")
     events = client.get('/api/events', headers=ADMIN).json()
     assert [(e['station'], e['direction']) for e in events] == [(station, 'out'), (station, 'in')]
+
+
+@pytest.mark.parametrize("school_day,first_utc,next_utc", [
+    ("2026-03-08", "2026-03-08T05:00:00+00:00", "2026-03-09T04:00:00+00:00"),
+    ("2026-11-01", "2026-11-01T04:00:00+00:00", "2026-11-02T05:00:00+00:00"),
+])
+def test_events_and_export_use_school_midnight(client, school_day, first_utc, next_utc):
+    from datetime import datetime
+    import csv
+    import io
+
+    start = int(datetime.fromisoformat(first_utc).timestamp())
+    end = int(datetime.fromisoformat(next_utc).timestamp())
+    for index, timestamp in enumerate([start - 1, start, end - 1, end]):
+        member = teacher(client, teacher_id=f"DAY-{index}")
+        assert scan(client, member["badge_code"]).status_code == 200
+        with Session(client.app.state.engine) as db:
+            event = db.scalars(select(ScanEvent).where(ScanEvent.teacher_pk == member["id"])).one()
+            event.occurred_at = timestamp
+            db.commit()
+
+    params = {"school_day": school_day}
+    events = client.get("/api/events", params=params, headers=ADMIN).json()
+    assert [row["teacher_id"] for row in events] == ["DAY-2", "DAY-1"]
+    exported = client.get("/api/export", params=params, headers=ADMIN)
+    assert [row["Teacher ID"] for row in csv.DictReader(io.StringIO(exported.text))] == ["DAY-2", "DAY-1"]
+    assert client.get("/api/events", params={**params, "since": start}, headers=ADMIN).status_code == 422

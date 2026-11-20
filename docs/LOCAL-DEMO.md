@@ -1,4 +1,24 @@
-# Repeatable local scanner rehearsal
+# Local scanner demos
+
+## Try the populated station
+
+From the checkout root, run:
+
+~~~sh
+uv run --locked --extra dev --extra demo python -m scripts.scanner_preview
+~~~
+
+Open [the scanner preview](http://glhs-scanner.localhost:18434/scanner) in Chrome
+on the same computer. Choose a fictional teacher and click **Scan sample badge**.
+The first teacher starts unrecorded. Scan again to see **Already in**, then
+choose **Check out** and scan once more. Eight teachers share the preview, with
+example arrivals and a departure already recorded.
+
+The preview uses its own localhost hostname for the station login and a temporary
+SQLite database. Ctrl+C stops the server. A new run starts a fresh school day.
+Pass `--port 18435` if the default port is busy and open the URL the launcher prints.
+
+## Rehearse with printable badges
 
 **Outcome:** anyone with the checkout can start with zero attendance, print eight
 fictional badges, and exercise the existing scan workflow.
